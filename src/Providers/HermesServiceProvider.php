@@ -6,8 +6,13 @@ namespace AndyDefer\LaravelHermes\Providers;
 
 use AndyDefer\LaravelHermes\Configs\SimilarityConfig;
 use AndyDefer\LaravelHermes\Contracts\Configs\SimilarityConfigInterface;
+use AndyDefer\LaravelHermes\Contracts\Repositories\HermesRepositoryInterface;
+use AndyDefer\LaravelHermes\Contracts\Services\HermesInterface;
 use AndyDefer\LaravelHermes\Contracts\Services\SimilarityCalculatorInterface;
+use AndyDefer\LaravelHermes\Repositories\HermesRepository;
+use AndyDefer\LaravelHermes\Services\HermesService;
 use AndyDefer\LaravelHermes\Services\SimilarityCalculatorService;
+use AndyDefer\LaravelIndexer\Repositories\IndexedTokenRepository;
 use AndyDefer\PhpServices\Configs\TextNormalizerConfig;
 use AndyDefer\PhpServices\Contracts\Services\NGramGeneratorInterface;
 use AndyDefer\PhpServices\Contracts\Services\WordVectorGeneratorInterface;
@@ -20,13 +25,14 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * Service provider for the Laravel Completion package.
+ * Service provider for the Laravel Hermes package.
  *
  * Registers all configuration, services, and interfaces for:
  * - Text similarity calculation
  * - N-gram generation
  * - Text normalization
  * - Vector generation
+ * - Hermes completion, suggestion and search services
  *
  * @example
  * // In config/app.php
@@ -42,8 +48,8 @@ final class HermesServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__.'/../../config/completion.php',
-            'completion'
+            __DIR__.'/../../config/hermes.php',
+            'hermes'
         );
 
         // ============================================================
@@ -62,8 +68,8 @@ final class HermesServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->alias(SimilarityConfigInterface::class, 'completion.similarity.config');
-        $this->app->alias(TextNormalizerConfigInterface::class, 'completion.normalizer.config');
+        $this->app->alias(SimilarityConfigInterface::class, 'hermes.similarity.config');
+        $this->app->alias(TextNormalizerConfigInterface::class, 'hermes.normalizer.config');
 
         // ============================================================
         // TEXT NORMALIZER
@@ -75,7 +81,7 @@ final class HermesServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->alias(TextNormalizerInterface::class, 'completion.normalizer');
+        $this->app->alias(TextNormalizerInterface::class, 'hermes.normalizer');
 
         // ============================================================
         // N-GRAM GENERATOR
@@ -87,7 +93,7 @@ final class HermesServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->alias(NGramGeneratorInterface::class, 'completion.ngram.generator');
+        $this->app->alias(NGramGeneratorInterface::class, 'hermes.ngram.generator');
 
         // ============================================================
         // WORD VECTOR GENERATOR
@@ -99,7 +105,7 @@ final class HermesServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->alias(WordVectorGeneratorInterface::class, 'completion.vector.generator');
+        $this->app->alias(WordVectorGeneratorInterface::class, 'hermes.vector.generator');
 
         // ============================================================
         // SIMILARITY CALCULATOR
@@ -118,8 +124,41 @@ final class HermesServiceProvider extends ServiceProvider
             return $app->make(SimilarityCalculatorInterface::class);
         });
 
-        $this->app->alias(SimilarityCalculatorInterface::class, 'completion.similarity.calculator');
-        $this->app->alias(SimilarityCalculatorService::class, 'completion.similarity.calculator');
+        $this->app->alias(SimilarityCalculatorInterface::class, 'hermes.similarity.calculator');
+        $this->app->alias(SimilarityCalculatorService::class, 'hermes.similarity.calculator');
+
+        // ============================================================
+        // HERMES REPOSITORY
+        // ============================================================
+
+        $this->app->singleton(HermesRepositoryInterface::class, function ($app) {
+            return new HermesRepository(
+                $app->make(IndexedTokenRepository::class)
+            );
+        });
+
+        $this->app->alias(HermesRepositoryInterface::class, 'hermes.repository');
+
+        // ============================================================
+        // HERMES SERVICE
+        // ============================================================
+
+        $this->app->singleton(HermesInterface::class, function ($app) {
+            return new HermesService(
+                hermesRepository: $app->make(HermesRepositoryInterface::class),
+                normalizer: $app->make(TextNormalizerInterface::class),
+                ngramGenerator: $app->make(NGramGeneratorInterface::class),
+                similarityCalculator: $app->make(SimilarityCalculatorInterface::class),
+                config: $app->make(SimilarityConfigInterface::class),
+            );
+        });
+
+        $this->app->singleton(HermesService::class, function ($app) {
+            return $app->make(HermesInterface::class);
+        });
+
+        $this->app->alias(HermesInterface::class, 'hermes.service');
+        $this->app->alias(HermesService::class, 'hermes.service');
     }
 
     /**
@@ -128,7 +167,7 @@ final class HermesServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->publishes([
-            __DIR__.'/../../config/completion.php' => config_path('completion.php'),
-        ], 'completion-config');
+            __DIR__.'/../../config/hermes.php' => config_path('hermes.php'),
+        ], 'hermes-config');
     }
 }

@@ -736,7 +736,7 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
             $normalizedWord,
             $this->config->getGramMinSize(),
             $this->config->getGramMaxSize(),
-            NormalizationMode::WITHOUT
+            NormalizationMode::WITH_NORMALIZATION
         )->toArray();
 
         $tokens = array_unique(array_merge([$normalizedWord], $ngrams));
@@ -776,7 +776,7 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
             $metaphone,
             $this->config->getGramMinSize(),
             $this->config->getGramMaxSize(),
-            NormalizationMode::WITHOUT
+            NormalizationMode::WITH_NORMALIZATION
         )->toArray();
 
         $tokens = array_unique(array_merge([$metaphone], $ngrams));
