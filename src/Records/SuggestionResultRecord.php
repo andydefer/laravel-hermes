@@ -6,6 +6,12 @@ namespace AndyDefer\LaravelHermes\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 
+/**
+ * Result record for text suggestion operations.
+ *
+ * Contains the suggested token, its associated document, field information,
+ * and the similarity score for the suggestion.
+ */
 final class SuggestionResultRecord extends AbstractRecord
 {
     public function __construct(

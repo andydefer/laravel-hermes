@@ -8,6 +8,12 @@ use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelIndexer\ValueObjects\SearchQueryVO;
 
+/**
+ * Request record for text suggestion operations.
+ *
+ * Contains the search query, result limit, optional context filters,
+ * and minimum similarity threshold for suggestions.
+ */
 final class SuggestionRequestRecord extends AbstractRecord
 {
     public function __construct(

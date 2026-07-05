@@ -8,6 +8,12 @@ use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelIndexer\ValueObjects\SearchQueryVO;
 
+/**
+ * Request record for full-text search operations.
+ *
+ * Contains the search query, result limit, optional context filters,
+ * minimum similarity threshold, and phonetic search toggle.
+ */
 final class SearchRequestRecord extends AbstractRecord
 {
     public function __construct(

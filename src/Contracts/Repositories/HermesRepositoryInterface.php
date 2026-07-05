@@ -8,17 +8,23 @@ use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use Illuminate\Support\Collection;
 
+/**
+ * Repository interface for querying indexed tokens.
+ *
+ * Defines methods for finding tokens by n-grams with context filtering,
+ * grouping by document, and counting matches.
+ */
 interface HermesRepositoryInterface
 {
     /**
-     * Recherche les tokens correspondant aux n-grammes avec filtres.
+     * Finds tokens matching the given n-grams with optional filters.
      *
-     * @param  array<string>  $ngrams  Les n-grammes à rechercher
-     * @param  ContextFilterVOCollection|null  $contexts  Filtres de contexte
-     * @param  StringTypedCollection|null  $fields  Filtres de champs
-     * @param  int  $limit  Limite de résultats
-     * @param  bool  $withDocument  Charger la relation document
-     * @return Collection Les tokens trouvés
+     * @param  array<string>  $ngrams  The n-grams to search for
+     * @param  ContextFilterVOCollection|null  $contexts  Context filters (OR logic between contexts)
+     * @param  StringTypedCollection|null  $fields  Field names to restrict the search
+     * @param  int  $limit  Maximum number of results
+     * @param  bool  $withDocument  Whether to eager load the related document
+     * @return Collection Collection of token models
      */
     public function findTokensByNgrams(
         array $ngrams,
@@ -29,9 +35,12 @@ interface HermesRepositoryInterface
     ): Collection;
 
     /**
-     * Récupère tous les tokens distincts pour un ensemble de n-grammes.
+     * Retrieves all distinct tokens matching the given n-grams.
      *
-     * @param  array<string>  $ngrams
+     * @param  array<string>  $ngrams  The n-grams to search for
+     * @param  ContextFilterVOCollection|null  $contexts  Context filters (OR logic between contexts)
+     * @param  StringTypedCollection|null  $fields  Field names to restrict the search
+     * @return Collection Collection of distinct token models
      */
     public function getAllTokensByNgrams(
         array $ngrams,
@@ -40,10 +49,13 @@ interface HermesRepositoryInterface
     ): Collection;
 
     /**
-     * Récupère les tokens groupés par document.
+     * Retrieves tokens grouped by their associated document.
      *
-     * @param  array<string>  $ngrams
-     * @return array<string, array> Tableau groupé par document_id
+     * @param  array<string>  $ngrams  The n-grams to search for
+     * @param  ContextFilterVOCollection|null  $contexts  Context filters (OR logic between contexts)
+     * @param  StringTypedCollection|null  $fields  Field names to restrict the search
+     * @param  float  $minSimilarity  Minimum similarity threshold (reserved for future use)
+     * @return array<string, array> Array grouped by document_id with document metadata and tokens
      */
     public function getTokensGroupedByDocument(
         array $ngrams,
@@ -53,9 +65,12 @@ interface HermesRepositoryInterface
     ): array;
 
     /**
-     * Compte le nombre de tokens correspondants.
+     * Counts distinct tokens matching the given n-grams.
      *
-     * @param  array<string>  $ngrams
+     * @param  array<string>  $ngrams  The n-grams to search for
+     * @param  ContextFilterVOCollection|null  $contexts  Context filters (OR logic between contexts)
+     * @param  StringTypedCollection|null  $fields  Field names to restrict the search
+     * @return int The number of distinct matching tokens
      */
     public function countTokensByNgrams(
         array $ngrams,

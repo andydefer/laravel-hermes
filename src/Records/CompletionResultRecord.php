@@ -6,6 +6,12 @@ namespace AndyDefer\LaravelHermes\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 
+/**
+ * Result record for text completion operations.
+ *
+ * Contains the matched token, its associated document, field information,
+ * and the similarity score for the completion.
+ */
 final class CompletionResultRecord extends AbstractRecord
 {
     public function __construct(

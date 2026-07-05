@@ -11,12 +11,26 @@ use AndyDefer\LaravelIndexer\Repositories\IndexedTokenRepository;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
+/**
+ * Repository for querying indexed tokens with n-gram matching and context filtering.
+ *
+ * Provides methods to find tokens by n-grams with support for:
+ * - Field-based filtering
+ * - Namespace and cluster context filtering
+ * - Document relation loading
+ * - Token grouping by document
+ *
+ * @see HermesRepositoryInterface
+ */
 final class HermesRepository implements HermesRepositoryInterface
 {
     public function __construct(
         private readonly IndexedTokenRepository $tokenRepository,
     ) {}
 
+    /**
+     * {@inheritDoc}
+     */
     public function findTokensByNgrams(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -24,7 +38,6 @@ final class HermesRepository implements HermesRepositoryInterface
         int $limit = 100,
         bool $withDocument = false
     ): Collection {
-
         $query = $this->tokenRepository->getModel()->newQuery()
             ->whereIn('token', $ngrams)
             ->select('id', 'document_id', 'token', 'original_text', 'field')
@@ -37,20 +50,12 @@ final class HermesRepository implements HermesRepositoryInterface
         $this->applyFilters($query, $contexts, $fields);
         $query->limit($limit);
 
-        // Récupérer le SQL pour debug
-        $sql = $query->toSql();
-        $bindings = $query->getBindings();
-
-        $result = $query->get();
-
-        foreach ($result as $token) {
-            if ($withDocument && $token->relationLoaded('document')) {
-            }
-        }
-
-        return $result;
+        return $query->get();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getAllTokensByNgrams(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -66,6 +71,9 @@ final class HermesRepository implements HermesRepositoryInterface
         return $query->get();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getTokensGroupedByDocument(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -84,18 +92,18 @@ final class HermesRepository implements HermesRepositoryInterface
         $grouped = [];
 
         foreach ($tokens as $token) {
-            $docId = $token->document_id;
+            $documentId = $token->document_id;
 
-            if (! isset($grouped[$docId])) {
-                $grouped[$docId] = [
-                    'document_id' => $docId,
+            if (! isset($grouped[$documentId])) {
+                $grouped[$documentId] = [
+                    'document_id' => $documentId,
                     'fingerprint' => $token->document->fingerprint,
                     'data' => $token->document->data,
                     'tokens' => [],
                 ];
             }
 
-            $grouped[$docId]['tokens'][] = [
+            $grouped[$documentId]['tokens'][] = [
                 'id' => $token->id,
                 'token' => $token->token,
                 'original_text' => $token->original_text,
@@ -106,6 +114,9 @@ final class HermesRepository implements HermesRepositoryInterface
         return $grouped;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countTokensByNgrams(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -120,36 +131,35 @@ final class HermesRepository implements HermesRepositoryInterface
         return $query->count('id');
     }
 
+    /**
+     * Applies field and context filters to the query builder.
+     *
+     * @param  Builder  $query  The Eloquent query builder
+     * @param  ContextFilterVOCollection|null  $contexts  Context filters to apply (OR logic between contexts)
+     * @param  StringTypedCollection|null  $fields  Field names to filter on
+     */
     private function applyFilters(Builder $query, ?ContextFilterVOCollection $contexts, ?StringTypedCollection $fields): void
     {
-
         if ($fields !== null && ! $fields->isEmpty()) {
-            $fieldArray = $fields->toArray();
-            $query->whereIn('field', $fieldArray);
+            $query->whereIn('field', $fields->toArray());
         }
 
         if ($contexts === null || $contexts->isEmpty()) {
-
             return;
         }
 
         $query->where(function ($subQuery) use ($contexts) {
-            $contextIndex = 0;
             foreach ($contexts as $context) {
-                $contextIndex++;
-
-                $subQuery->orWhere(function ($q) use ($context) {
+                $subQuery->orWhere(function ($filterQuery) use ($context) {
                     if ($context->hasNamespace()) {
-                        $pattern = $context->namespace.'|%';
-                        $q->whereHas('document', function ($doc) use ($pattern) {
-                            $doc->where('fingerprint', 'LIKE', $pattern);
+                        $filterQuery->whereHas('document', function ($documentQuery) use ($context) {
+                            $documentQuery->where('fingerprint', 'LIKE', $context->namespace.'|%');
                         });
                     }
 
                     if ($context->hasCluster()) {
-                        $pattern = '%'.$context->cluster.'%';
-                        $q->whereHas('document', function ($doc) use ($pattern) {
-                            $doc->where('cluster', 'LIKE', $pattern);
+                        $filterQuery->whereHas('document', function ($documentQuery) use ($context) {
+                            $documentQuery->where('cluster', 'LIKE', '%'.$context->cluster.'%');
                         });
                     }
                 });

@@ -8,6 +8,12 @@ use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelHermes\Collections\MatchRecordCollection;
 
+/**
+ * Result record for full-text search operations.
+ *
+ * Contains the complete document information including all fields,
+ * matches with their similarity scores, and an overall document similarity score.
+ */
 final class SearchResultRecord extends AbstractRecord
 {
     public function __construct(

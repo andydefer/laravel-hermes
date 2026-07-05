@@ -26,7 +26,39 @@ use AndyDefer\PhpServices\Enums\NormalizationMode;
  */
 final class SimilarityCalculatorService implements SimilarityCalculatorInterface
 {
-    /** @var array<string, FloatTypedCollection> */
+    /** Maximum number of words before sampling is triggered. */
+    private const DEFAULT_MAX_WORDS = 50;
+
+    /** Maximum number of word pairs before sampling is triggered. */
+    private const DEFAULT_MAX_PAIRS = 2500;
+
+    /** Default timeout in seconds for similarity matrix calculation. */
+    private const DEFAULT_TIMEOUT_SECONDS = 0.5;
+
+    /** Percentage threshold for coverage penalty (70%). */
+    private const COVERAGE_PENALTY_THRESHOLD = 0.7;
+
+    /** Penalty factor applied when coverage is below threshold. */
+    private const COVERAGE_PENALTY_FACTOR = 0.3;
+
+    /** Percentage of words taken from the beginning during sampling (50%). */
+    private const SAMPLE_BEGINNING_RATIO = 0.5;
+
+    /** Percentage of remaining words taken from the middle during sampling (50%). */
+    private const SAMPLE_MIDDLE_RATIO = 0.5;
+
+    /** Starting position for middle sampling (30% into the list). */
+    private const SAMPLE_MIDDLE_OFFSET = 0.3;
+
+    /** Lexical distance threshold for high bonus (distance < 2). */
+    private const LEXICAL_BONUS_HIGH_THRESHOLD = 2;
+
+    /** Minimum word length when merging short words. */
+    private const MIN_MERGE_WORD_LENGTH = 2;
+
+    /**
+     * @var array<string, FloatTypedCollection>
+     */
     private array $vectorCache = [];
 
     public function __construct(
@@ -37,20 +69,7 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
     ) {}
 
     /**
-     * Calculates the similarity between two text strings.
-     *
-     * The algorithm:
-     * 1. Normalizes both texts (lowercase, remove accents)
-     * 2. Normalizes numbers (2.0.1 → 2 0 1)
-     * 3. Extracts words and merges short ones with neighbors
-     * 4. Builds a similarity matrix between all word pairs
-     * 5. Selects the best one-to-one matches
-     * 6. Averages the match scores
-     * 7. Applies a length correction factor
-     *
-     * @param  string  $text1  First text to compare
-     * @param  string  $text2  Second text to compare
-     * @return float Similarity score between 0.0 and 1.0
+     * {@inheritDoc}
      */
     public function calculateSimilarity(string $text1, string $text2): float
     {
@@ -60,7 +79,7 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
         $normalized1 = $this->normalizeNumbers($normalized1);
         $normalized2 = $this->normalizeNumbers($normalized2);
 
-        $maxWords = $this->config->getMaxWords() ?? 50;
+        $maxWords = $this->config->getMaxWords() ?? self::DEFAULT_MAX_WORDS;
         $words1 = $this->extractAndMergeWords($normalized1, $maxWords);
         $words2 = $this->extractAndMergeWords($normalized2, $maxWords);
 
@@ -69,14 +88,14 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
         }
 
         $totalPairs = count($words1) * count($words2);
-        $maxPairs = $this->config->getMaxPairs() ?? 2500;
+        $maxPairs = $this->config->getMaxPairs() ?? self::DEFAULT_MAX_PAIRS;
 
         if ($totalPairs > $maxPairs) {
             $words1 = $this->sampleWords($words1, $maxWords);
             $words2 = $this->sampleWords($words2, $maxWords);
         }
 
-        $timeout = $this->config->getTimeoutSeconds() ?? 0.5;
+        $timeout = $this->config->getTimeoutSeconds() ?? self::DEFAULT_TIMEOUT_SECONDS;
         $similarityMatrix = $this->buildSimilarityMatrixWithTimeout($words1, $words2, $timeout);
 
         $bestMatches = $this->selectBestOneToOneMatches($similarityMatrix, count($words1), count($words2));
@@ -93,33 +112,29 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
     /**
      * Builds a similarity matrix with timeout protection.
      *
-     * @param  array<string>  $words1  First list of words
-     * @param  array<string>  $words2  Second list of words
-     * @param  float  $timeout  Maximum time in seconds
+     * Each cell contains the similarity between a word from text1 and a word from text2.
+     * The matrix is populated row by row, with a timeout to prevent excessive computation.
+     *
+     * @param  array<string>  $words1  Words from the first text
+     * @param  array<string>  $words2  Words from the second text
+     * @param  float  $timeout  Maximum execution time in seconds
      * @return array<array<float>> Matrix of similarity scores
      */
     private function buildSimilarityMatrixWithTimeout(array $words1, array $words2, float $timeout): array
     {
         $matrix = [];
         $startTime = microtime(true);
-        $totalPairs = count($words1) * count($words2);
-        $processed = 0;
+        $rowCount = count($words1);
+        $colCount = count($words2);
 
-        for ($i = 0; $i < count($words1); $i++) {
-            $matrix[$i] = [];
+        for ($row = 0; $row < $rowCount; $row++) {
+            $matrix[$row] = [];
 
-            for ($j = 0; $j < count($words2); $j++) {
-                $matrix[$i][$j] = $this->calculateWordSimilarity($words1[$i], $words2[$j]);
-                $processed++;
+            for ($col = 0; $col < $colCount; $col++) {
+                $matrix[$row][$col] = $this->calculateWordSimilarity($words1[$row], $words2[$col]);
 
                 if (microtime(true) - $startTime > $timeout) {
-                    for ($remainingI = $i; $remainingI < count($words1); $remainingI++) {
-                        for ($remainingJ = ($remainingI === $i ? $j + 1 : 0); $remainingJ < count($words2); $remainingJ++) {
-                            if (! isset($matrix[$remainingI][$remainingJ])) {
-                                $matrix[$remainingI][$remainingJ] = 0.0;
-                            }
-                        }
-                    }
+                    $this->fillRemainingCells($matrix, $row, $col, $rowCount, $colCount);
 
                     return $matrix;
                 }
@@ -130,9 +145,29 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
     }
 
     /**
-     * Samples words to reduce matrix size.
+     * Fills remaining cells of the matrix with zero values after timeout.
      *
-     * Takes words from beginning, middle, and end of the list.
+     * @param  array<array<float>>  $matrix  The matrix being built
+     * @param  int  $currentRow  The current row index
+     * @param  int  $currentCol  The current column index
+     * @param  int  $rowCount  Total number of rows
+     * @param  int  $colCount  Total number of columns
+     */
+    private function fillRemainingCells(array &$matrix, int $currentRow, int $currentCol, int $rowCount, int $colCount): void
+    {
+        for ($row = $currentRow; $row < $rowCount; $row++) {
+            for ($col = ($row === $currentRow ? $currentCol + 1 : 0); $col < $colCount; $col++) {
+                if (! isset($matrix[$row][$col])) {
+                    $matrix[$row][$col] = 0.0;
+                }
+            }
+        }
+    }
+
+    /**
+     * Samples words from a list to reduce matrix size.
+     *
+     * Takes a balanced sample from the beginning, middle, and end of the list.
      *
      * @param  array<string>  $words  Original word list
      * @param  int  $maxWords  Maximum number of words to keep
@@ -140,29 +175,26 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
      */
     private function sampleWords(array $words, int $maxWords): array
     {
-        $count = count($words);
+        $wordCount = count($words);
 
-        if ($count <= $maxWords) {
+        if ($wordCount <= $maxWords) {
             return $words;
         }
 
         $sampled = [];
 
-        $takeFirst = (int) ($maxWords * 0.5);
-        $first = array_slice($words, 0, $takeFirst);
-        $sampled = array_merge($sampled, $first);
+        $takeFirst = (int) ($maxWords * self::SAMPLE_BEGINNING_RATIO);
+        $sampled = array_merge($sampled, array_slice($words, 0, $takeFirst));
 
         $remaining = $maxWords - count($sampled);
 
         if ($remaining > 0) {
-            $takeMiddle = (int) ($remaining * 0.5);
-            $middleStart = (int) ($count * 0.3);
-            $middle = array_slice($words, $middleStart, $takeMiddle);
-            $sampled = array_merge($sampled, $middle);
+            $takeMiddle = (int) ($remaining * self::SAMPLE_MIDDLE_RATIO);
+            $middleStart = (int) ($wordCount * self::SAMPLE_MIDDLE_OFFSET);
+            $sampled = array_merge($sampled, array_slice($words, $middleStart, $takeMiddle));
 
             $takeEnd = $maxWords - count($sampled);
-            $end = array_slice($words, -$takeEnd);
-            $sampled = array_merge($sampled, $end);
+            $sampled = array_merge($sampled, array_slice($words, -$takeEnd));
         }
 
         return $sampled;
@@ -278,8 +310,8 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
 
         $coverageRatio = $shortest / $longest;
 
-        if ($coverageRatio < 0.7) {
-            $coveragePenalty = 1 - (0.3 * (1 - $coverageRatio));
+        if ($coverageRatio < self::COVERAGE_PENALTY_THRESHOLD) {
+            $coveragePenalty = 1 - (self::COVERAGE_PENALTY_FACTOR * (1 - $coverageRatio));
             $score *= $coveragePenalty;
         }
 
@@ -319,7 +351,7 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
             return [];
         }
 
-        $minLength = max(2, $this->config->getMinWordLength());
+        $minLength = max(self::MIN_MERGE_WORD_LENGTH, $this->config->getMinWordLength());
 
         if ($this->allWordsAreLongEnough($words, $minLength)) {
             return count($words) > $maxWords ? array_slice($words, 0, $maxWords) : $words;
@@ -343,9 +375,8 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
     private function normalizeNumbers(string $text): string
     {
         $text = preg_replace('/(\d+)\.(\d+)\.(\d+)/', '$1 $2 $3', $text);
-        $text = preg_replace('/([a-zA-Z])(\d+)\.(\d+)\.(\d+)/', '$1 $2 $3 $4', $text);
 
-        return $text;
+        return preg_replace('/([a-zA-Z])(\d+)\.(\d+)\.(\d+)/', '$1 $2 $3 $4', $text);
     }
 
     /**
@@ -399,11 +430,11 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
             } else {
                 $buffer .= $currentWord;
             }
+
             $index++;
 
             if ($index < count($words)) {
-                $nextWord = $words[$index];
-                $buffer .= $nextWord;
+                $buffer .= $words[$index];
                 $index++;
             }
         }
@@ -422,9 +453,8 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
     /**
      * Calculates similarity between two individual words.
      *
-     * Combines lexical n-gram similarity (60% default) and
-     * phonetic similarity (40% default) with bonus for
-     * common letters and bigrams, and Levenshtein distance bonus.
+     * Combines lexical n-gram similarity and phonetic similarity with configurable weights,
+     * plus bonuses for common letters, bigrams, and Levenshtein proximity.
      *
      * @param  string  $word1  First word
      * @param  string  $word2  Second word
@@ -480,6 +510,7 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
         $normalized2 = $this->normalizer->normalize($word2);
 
         $levenshteinLexical = levenshtein($normalized1, $normalized2);
+
         $metaphone1 = metaphone($normalized1);
         $metaphone2 = metaphone($normalized2);
         $levenshteinMetaphone = levenshtein($metaphone1, $metaphone2);
@@ -490,7 +521,7 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
             $bonus += $this->config->getMetaphoneBonusValue();
         }
 
-        if ($levenshteinLexical < 2) {
+        if ($levenshteinLexical < self::LEXICAL_BONUS_HIGH_THRESHOLD) {
             $bonus += $this->config->getLexicalBonusHigh();
         } elseif ($levenshteinLexical < $this->config->getLexicalBonusThreshold()) {
             $bonus += $this->config->getLexicalBonusMedium();
@@ -577,9 +608,8 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
     {
         $letters1 = array_unique(mb_str_split($word1));
         $letters2 = array_unique(mb_str_split($word2));
-        $commonLetters = array_intersect($letters1, $letters2);
 
-        return count($commonLetters);
+        return count(array_intersect($letters1, $letters2));
     }
 
     /**
@@ -593,9 +623,8 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
     {
         $bigrams1 = $this->extractBigrams($word1);
         $bigrams2 = $this->extractBigrams($word2);
-        $commonBigrams = array_intersect($bigrams1, $bigrams2);
 
-        return count($commonBigrams);
+        return count(array_intersect($bigrams1, $bigrams2));
     }
 
     /**
