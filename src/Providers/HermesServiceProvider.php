@@ -31,10 +31,10 @@ use Illuminate\Support\ServiceProvider;
  * @example
  * // In config/app.php
  * 'providers' => [
- *     AndyDefer\LaravelHermes\Providers\CompletionServiceProvider::class,
+ *     AndyDefer\LaravelHermes\Providers\HermesServiceProvider::class,
  * ];
  */
-final class CompletionServiceProvider extends ServiceProvider
+final class HermesServiceProvider extends ServiceProvider
 {
     /**
      * Register services in the container.

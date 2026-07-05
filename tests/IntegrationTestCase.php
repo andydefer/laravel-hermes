@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelHermes\Tests;
 
-use AndyDefer\LaravelHermes\Providers\CompletionServiceProvider;
+use AndyDefer\LaravelHermes\Providers\HermesServiceProvider;
 use AndyDefer\LaravelIndexer\Providers\IndexerServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
@@ -21,7 +21,7 @@ abstract class IntegrationTestCase extends Orchestra
     {
         return [
             IndexerServiceProvider::class,
-            CompletionServiceProvider::class,
+            HermesServiceProvider::class,
         ];
     }
 

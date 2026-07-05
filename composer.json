@@ -1,6 +1,21 @@
 {
-    "name": "andydefer/laravel-completion",
-    "description": "A powerful and flexible indexing system for Laravel with Eloquent support, n-gram and metaphone tokenization, and advanced search capabilities.",
+    "name": "andydefer/laravel-hermes",
+    "description": "Hermes - Intelligent text similarity, completion, suggestion and search service for Laravel, powered by n-grams and metaphone algorithms.",
+    "keywords": [
+        "laravel",
+        "hermes",
+        "similarity",
+        "completion",
+        "suggestion",
+        "search",
+        "text-analysis",
+        "n-gram",
+        "metaphone",
+        "levenshtein",
+        "fuzzy-search"
+    ],
+    "homepage": "https://github.com/andydefer/laravel-hermes",
+    "license": "MIT",
     "autoload": {
         "psr-4": {
             "AndyDefer\\LaravelHermes\\": "src/"
@@ -14,7 +29,8 @@
     "authors": [
         {
             "name": "Andy Kani",
-            "email": "andykanidimbu@gmail.com"
+            "email": "andykanidimbu@gmail.com",
+            "role": "Developer"
         }
     ],
     "require": {
@@ -27,5 +43,20 @@
         "phpunit/phpunit": "^10.5|^11.0|^12.0",
         "mockery/mockery": "^1.6",
         "laravel/pint": "^1.29"
-    }
+    },
+    "suggest": {
+        "andydefer/laravel-indexer": "Required for indexing and search capabilities"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AndyDefer\\LaravelHermes\\Providers\\HermesServiceProvider"
+            ],
+            "aliases": {
+                "Hermes": "AndyDefer\\LaravelHermes\\Facades\\Hermes"
+            }
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
 }
