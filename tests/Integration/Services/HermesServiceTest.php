@@ -74,7 +74,7 @@ final class HermesServiceTest extends IntegrationTestCase
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
 
         $request = CompletionRequestRecord::from([
-            'query' => new SearchQueryVO('joh=name'),
+            'query' => 'joh=name',
             'limit' => 10,
         ]);
 
@@ -139,7 +139,7 @@ final class HermesServiceTest extends IntegrationTestCase
         $contexts->add(new ContextFilterVO('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser'));
 
         $request = CompletionRequestRecord::from([
-            'query' => new SearchQueryVO('joh=name'),
+            'query' => 'joh=name',
             'limit' => 10,
             'contexts' => $contexts,
         ]);
@@ -164,7 +164,7 @@ final class HermesServiceTest extends IntegrationTestCase
         $contexts->add(new ContextFilterVO(null, 'tenant:company_abc'));
 
         $request = CompletionRequestRecord::from([
-            'query' => new SearchQueryVO('joh=name'),
+            'query' => 'joh=name',
             'limit' => 10,
             'contexts' => $contexts,
         ]);
@@ -207,7 +207,7 @@ final class HermesServiceTest extends IntegrationTestCase
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
 
         $request = CompletionRequestRecord::from([
-            'query' => new SearchQueryVO('xyz=name'),
+            'query' => 'xyz=name',
             'limit' => 10,
         ]);
 
