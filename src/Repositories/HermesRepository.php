@@ -24,6 +24,7 @@ final class HermesRepository implements HermesRepositoryInterface
         int $limit = 100,
         bool $withDocument = false
     ): Collection {
+
         $query = $this->tokenRepository->getModel()->newQuery()
             ->whereIn('token', $ngrams)
             ->select('id', 'document_id', 'token', 'original_text', 'field')
@@ -36,7 +37,18 @@ final class HermesRepository implements HermesRepositoryInterface
         $this->applyFilters($query, $contexts, $fields);
         $query->limit($limit);
 
-        return $query->get();
+        // Récupérer le SQL pour debug
+        $sql = $query->toSql();
+        $bindings = $query->getBindings();
+
+        $result = $query->get();
+
+        foreach ($result as $token) {
+            if ($withDocument && $token->relationLoaded('document')) {
+            }
+        }
+
+        return $result;
     }
 
     public function getAllTokensByNgrams(
@@ -110,26 +122,34 @@ final class HermesRepository implements HermesRepositoryInterface
 
     private function applyFilters(Builder $query, ?ContextFilterVOCollection $contexts, ?StringTypedCollection $fields): void
     {
+
         if ($fields !== null && ! $fields->isEmpty()) {
-            $query->whereIn('field', $fields->toArray());
+            $fieldArray = $fields->toArray();
+            $query->whereIn('field', $fieldArray);
         }
 
         if ($contexts === null || $contexts->isEmpty()) {
+
             return;
         }
 
         $query->where(function ($subQuery) use ($contexts) {
+            $contextIndex = 0;
             foreach ($contexts as $context) {
+                $contextIndex++;
+
                 $subQuery->orWhere(function ($q) use ($context) {
                     if ($context->hasNamespace()) {
-                        $q->whereHas('document', function ($doc) use ($context) {
-                            $doc->where('fingerprint', 'LIKE', $context->namespace.'|%');
+                        $pattern = $context->namespace.'|%';
+                        $q->whereHas('document', function ($doc) use ($pattern) {
+                            $doc->where('fingerprint', 'LIKE', $pattern);
                         });
                     }
 
                     if ($context->hasCluster()) {
-                        $q->whereHas('document', function ($doc) use ($context) {
-                            $doc->where('cluster', 'LIKE', '%'.$context->cluster.'%');
+                        $pattern = '%'.$context->cluster.'%';
+                        $q->whereHas('document', function ($doc) use ($pattern) {
+                            $doc->where('cluster', 'LIKE', $pattern);
                         });
                     }
                 });

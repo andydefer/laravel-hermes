@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "25c093fb6ee5032ffd9c8671d9536373",
+    "content-hash": "07c2b3e6cabe7bb1490302688ed6bf2e",
     "packages": [
         {
             "name": "andydefer/algo-kit",
@@ -272,16 +272,16 @@
         },
         {
             "name": "andydefer/laravel-indexer",
-            "version": "v0.2.1",
+            "version": "v0.6.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-indexer.git",
-                "reference": "f5945c40d4f1d8b7edd325dc20f46e3d5d0febac"
+                "reference": "7aa6b81bf3ec23025003fc95738ebea0e0853af1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-indexer/zipball/f5945c40d4f1d8b7edd325dc20f46e3d5d0febac",
-                "reference": "f5945c40d4f1d8b7edd325dc20f46e3d5d0febac",
+                "url": "https://api.github.com/repos/andydefer/laravel-indexer/zipball/7aa6b81bf3ec23025003fc95738ebea0e0853af1",
+                "reference": "7aa6b81bf3ec23025003fc95738ebea0e0853af1",
                 "shasum": ""
             },
             "require": {
@@ -316,9 +316,9 @@
             "description": "A powerful and flexible indexing system for Laravel with Eloquent support, n-gram and metaphone tokenization, and advanced search capabilities.",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-indexer/issues",
-                "source": "https://github.com/andydefer/laravel-indexer/tree/v0.2.1"
+                "source": "https://github.com/andydefer/laravel-indexer/tree/v0.6.1"
             },
-            "time": "2026-07-05T09:01:51+00:00"
+            "time": "2026-07-05T13:43:01+00:00"
         },
         {
             "name": "andydefer/laravel-jsonl",
@@ -9682,7 +9682,7 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {},
-    "prefer-stable": false,
+    "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
         "php": "^8.1"

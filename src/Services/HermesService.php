@@ -104,22 +104,26 @@ final class HermesService implements HermesInterface
 
     public function suggest(SuggestionRequestRecord $request): SuggestionResultRecordCollection
     {
+
         $collection = new SuggestionResultRecordCollection;
         $allResults = [];
 
         $ngrams = $request->query->getNgrams();
 
         if (empty($ngrams)) {
+
             return $collection;
         }
 
         foreach ($ngrams as $ngram) {
+
             $fields = $request->query->getFieldsForNgram($ngram);
             $fieldsCollection = $this->createStringCollection($fields);
 
             $termNgrams = $this->generateTermNgrams($ngram);
 
             if (empty($termNgrams)) {
+
                 continue;
             }
 
@@ -137,6 +141,7 @@ final class HermesService implements HermesInterface
                 );
 
                 if ($score < $request->min_similarity) {
+
                     continue;
                 }
 

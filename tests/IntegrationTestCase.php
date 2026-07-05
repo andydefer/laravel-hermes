@@ -32,6 +32,7 @@ abstract class IntegrationTestCase extends Orchestra
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',
+            'foreign_key_constraints' => true,
         ]);
     }
 
@@ -49,13 +50,22 @@ abstract class IntegrationTestCase extends Orchestra
 
     protected function runMigrations(): void
     {
-        $migrationPath = __DIR__.'/Fixtures/migrations';
-        if (is_dir($migrationPath)) {
-            $this->loadMigrationsFrom($migrationPath);
+        // 1. Charger les migrations des fixtures (modèles de test)
+        $fixtureMigrations = __DIR__.'/Fixtures/migrations';
+        if (is_dir($fixtureMigrations)) {
+            $this->loadMigrationsFrom($fixtureMigrations);
         }
-        $packageMigrations = __DIR__.'/../database/migrations';
-        if (is_dir($packageMigrations)) {
-            $this->loadMigrationsFrom($packageMigrations);
+
+        // 2. Charger les migrations du package laravel-indexer
+        $indexerMigrations = realpath(__DIR__.'/../vendor/andydefer/laravel-indexer/database/migrations');
+        if ($indexerMigrations !== false && is_dir($indexerMigrations)) {
+            $this->loadMigrationsFrom($indexerMigrations);
+        }
+
+        // 3. Charger les migrations du package laravel-hermes
+        $hermesMigrations = __DIR__.'/../database/migrations';
+        if (is_dir($hermesMigrations)) {
+            $this->loadMigrationsFrom($hermesMigrations);
         }
     }
 }

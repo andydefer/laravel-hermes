@@ -223,24 +223,4 @@ final class SimilarityCalculatorServiceTest extends IntegrationTestCase
 
         $this->assertGreaterThan(0.9, $score);
     }
-
-    public function test_benchmark(): void
-    {
-
-        // Créer le service
-        $service = app(SimilarityCalculatorService::class);
-
-        // Activer le debug
-        $service->setDebug(true);
-
-        // Calculer la similarité
-        $score = $service->calculateSimilarity(
-            'John Doe is a software developer',
-            'Jon Doe is a software developer'
-        );
-
-        echo "\nScore final: ".$score."\n";
-
-        $this->assertTrue(true);
-    }
 }

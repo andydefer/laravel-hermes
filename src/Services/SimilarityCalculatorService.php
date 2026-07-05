@@ -26,8 +26,6 @@ use AndyDefer\PhpServices\Enums\NormalizationMode;
  */
 final class SimilarityCalculatorService implements SimilarityCalculatorInterface
 {
-    private bool $debug = false;
-
     /** @var array<string, FloatTypedCollection> */
     private array $vectorCache = [];
 
@@ -37,14 +35,6 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
         private readonly WordVectorGeneratorInterface $vectorGenerator,
         private readonly SimilarityConfigInterface $config,
     ) {}
-
-    /**
-     * Enables or disables debug output.
-     */
-    public function setDebug(bool $debug): void
-    {
-        $this->debug = $debug;
-    }
 
     /**
      * Calculates the similarity between two text strings.
@@ -64,80 +54,40 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
      */
     public function calculateSimilarity(string $text1, string $text2): float
     {
-        $totalStart = microtime(true);
-
-        // ---- Étape 1: Normalisation ----
-        $start = microtime(true);
         $normalized1 = $this->normalizer->normalize($text1);
         $normalized2 = $this->normalizer->normalize($text2);
-        $this->logTime('Normalisation', $start);
 
-        // ---- Étape 2: Normalisation des nombres ----
         $normalized1 = $this->normalizeNumbers($normalized1);
         $normalized2 = $this->normalizeNumbers($normalized2);
 
-        // ---- Étape 3: Extraction et fusion des mots ----
-        $start = microtime(true);
         $maxWords = $this->config->getMaxWords() ?? 50;
         $words1 = $this->extractAndMergeWords($normalized1, $maxWords);
         $words2 = $this->extractAndMergeWords($normalized2, $maxWords);
-        $this->logTime('Extraction des mots', $start);
-        $this->logCount('Mots texte 1', count($words1));
-        $this->logCount('Mots texte 2', count($words2));
 
         if (empty($words1) || empty($words2)) {
-            $this->logTime('Total', $totalStart);
-
             return 0.0;
         }
 
-        // ---- Étape 4: Sampling si trop de mots ----
         $totalPairs = count($words1) * count($words2);
         $maxPairs = $this->config->getMaxPairs() ?? 2500;
 
         if ($totalPairs > $maxPairs) {
-            $this->logCount('⚠️  Sampling déclenché (paires: '.$totalPairs.' > '.$maxPairs.')', 1);
             $words1 = $this->sampleWords($words1, $maxWords);
             $words2 = $this->sampleWords($words2, $maxWords);
-            $this->logCount('Mots après sampling 1', count($words1));
-            $this->logCount('Mots après sampling 2', count($words2));
         }
 
-        // ---- Étape 5: Matrice de similarité avec timeout ----
-        $start = microtime(true);
         $timeout = $this->config->getTimeoutSeconds() ?? 0.5;
         $similarityMatrix = $this->buildSimilarityMatrixWithTimeout($words1, $words2, $timeout);
-        $this->logTime('Matrice de similarité', $start);
-        $this->logCount('Taille matrice', count($similarityMatrix) * count($similarityMatrix[0] ?? []));
 
-        // ---- Étape 6: Sélection des meilleurs matchs ----
-        $start = microtime(true);
         $bestMatches = $this->selectBestOneToOneMatches($similarityMatrix, count($words1), count($words2));
-        $this->logTime('Sélection des meilleurs matchs', $start);
-        $this->logCount('Meilleurs matchs', count($bestMatches));
 
         if (empty($bestMatches)) {
-            $this->logTime('Total', $totalStart);
-
             return 0.0;
         }
 
-        // ---- Étape 7: Score moyen ----
-        $start = microtime(true);
         $baseScore = array_sum($bestMatches) / count($bestMatches);
-        $this->logTime('Score moyen', $start);
-        $this->logValue('Score moyen', $baseScore);
 
-        // ---- Étape 8: Correction de longueur ----
-        $start = microtime(true);
-        $finalScore = $this->applyLengthCorrection($baseScore, $normalized1, $normalized2);
-        $this->logTime('Correction de longueur', $start);
-        $this->logValue('Score final', $finalScore);
-
-        $this->logTime('Total', $totalStart);
-        $this->logSeparator();
-
-        return $finalScore;
+        return $this->applyLengthCorrection($baseScore, $normalized1, $normalized2);
     }
 
     /**
@@ -163,9 +113,6 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
                 $processed++;
 
                 if (microtime(true) - $startTime > $timeout) {
-                    $this->logCount('⏱️  Timeout atteint après '.$processed.'/'.$totalPairs.' paires', 1);
-
-                    // Remplir le reste avec 0
                     for ($remainingI = $i; $remainingI < count($words1); $remainingI++) {
                         for ($remainingJ = ($remainingI === $i ? $j + 1 : 0); $remainingJ < count($words2); $remainingJ++) {
                             if (! isset($matrix[$remainingI][$remainingJ])) {
@@ -201,7 +148,6 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
 
         $sampled = [];
 
-        // 50% du début
         $takeFirst = (int) ($maxWords * 0.5);
         $first = array_slice($words, 0, $takeFirst);
         $sampled = array_merge($sampled, $first);
@@ -209,13 +155,11 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
         $remaining = $maxWords - count($sampled);
 
         if ($remaining > 0) {
-            // 25% du milieu
             $takeMiddle = (int) ($remaining * 0.5);
             $middleStart = (int) ($count * 0.3);
             $middle = array_slice($words, $middleStart, $takeMiddle);
             $sampled = array_merge($sampled, $middle);
 
-            // 25% de la fin
             $takeEnd = $maxWords - count($sampled);
             $end = array_slice($words, -$takeEnd);
             $sampled = array_merge($sampled, $end);
@@ -332,16 +276,13 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
         $longest = max($uniqueCount1, $uniqueCount2);
         $shortest = min($uniqueCount1, $uniqueCount2);
 
-        // ---- Pénalité de couverture ----
         $coverageRatio = $shortest / $longest;
 
-        // Si un texte est beaucoup plus court (< 70%), pénaliser
         if ($coverageRatio < 0.7) {
             $coveragePenalty = 1 - (0.3 * (1 - $coverageRatio));
             $score *= $coveragePenalty;
         }
 
-        // ---- Pénalité de lettres communes ----
         $shortToLongPercentage = ($shortest / $longest) * 100;
         $commonLetters = array_intersect($letters1, $letters2);
         $commonCount = count($commonLetters);
@@ -401,10 +342,7 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
      */
     private function normalizeNumbers(string $text): string
     {
-        // Séparer les nombres avec points (ex: 2.0.1 → 2 0 1)
         $text = preg_replace('/(\d+)\.(\d+)\.(\d+)/', '$1 $2 $3', $text);
-
-        // Séparer les nombres avec points précédés d'une lettre (ex: v2.0.1 → v 2 0 1)
         $text = preg_replace('/([a-zA-Z])(\d+)\.(\d+)\.(\d+)/', '$1 $2 $3 $4', $text);
 
         return $text;
@@ -456,7 +394,6 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
                 continue;
             }
 
-            // Mot trop court : on le garde dans le buffer
             if ($buffer === '') {
                 $buffer = $currentWord;
             } else {
@@ -464,7 +401,6 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
             }
             $index++;
 
-            // Si on arrive à la fin ou si le prochain mot existe, on fusionne
             if ($index < count($words)) {
                 $nextWord = $words[$index];
                 $buffer .= $nextWord;
@@ -496,44 +432,27 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
      */
     private function calculateWordSimilarity(string $word1, string $word2): float
     {
-        // Early return si les mots sont identiques
         if ($word1 === $word2) {
             return 1.0;
         }
 
-        // Early return si un mot est vide
         if ($word1 === '' || $word2 === '') {
             return 0.0;
         }
 
         $dimension = $this->config->getVectorDimension();
 
-        // ---- Vecteurs lexicaux avec cache ----
-        $start = microtime(true);
         $lexicalVector1 = $this->getOrGenerateLexicalVector($word1, $dimension);
         $lexicalVector2 = $this->getOrGenerateLexicalVector($word2, $dimension);
-        $this->logTime('  → Vecteurs lexicaux', $start);
 
-        // ---- Vecteurs phonétiques avec cache ----
-        $start = microtime(true);
         $phoneticVector1 = $this->getOrGeneratePhoneticVector($word1, $dimension);
         $phoneticVector2 = $this->getOrGeneratePhoneticVector($word2, $dimension);
-        $this->logTime('  → Vecteurs phonétiques', $start);
 
-        // ---- Similarités ----
-        $start = microtime(true);
         $lexicalSimilarity = $this->vectorGenerator->cosineSimilarity($lexicalVector1, $lexicalVector2);
         $phoneticSimilarity = $this->vectorGenerator->cosineSimilarity($phoneticVector1, $phoneticVector2);
-        $this->logTime('  → Cosine similarity', $start);
 
-        // ---- Bonus standard ----
-        $start = microtime(true);
         $bonus = $this->calculateBonus($word1, $word2);
-        $this->logTime('  → Calcul bonus', $start);
-
-        // ---- Bonus Levenshtein amélioré ----
         $levenshteinBonus = $this->calculateLevenshteinBonus($word1, $word2);
-        $this->logValue('  → Bonus Levenshtein', $levenshteinBonus);
 
         $textualWeight = $this->config->getTextualWeight();
         $phoneticWeight = $this->config->getPhoneticWeight();
@@ -567,12 +486,10 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
 
         $bonus = 0.0;
 
-        // Bonus métaphonique
         if ($levenshteinMetaphone < $this->config->getMetaphoneBonusThreshold()) {
             $bonus += $this->config->getMetaphoneBonusValue();
         }
 
-        // Bonus lexical
         if ($levenshteinLexical < 2) {
             $bonus += $this->config->getLexicalBonusHigh();
         } elseif ($levenshteinLexical < $this->config->getLexicalBonusThreshold()) {
@@ -833,46 +750,5 @@ final class SimilarityCalculatorService implements SimilarityCalculatorInterface
         }
 
         return $totalInverseWeight / count($letters);
-    }
-
-    // ============================================================================
-    // Debug helpers
-    // ============================================================================
-
-    private function logTime(string $label, float $start): void
-    {
-        if (! $this->debug) {
-            return;
-        }
-
-        $duration = (microtime(true) - $start) * 1000;
-        echo sprintf("  ⏱️  %s: %.4f ms\n", $label, $duration);
-    }
-
-    private function logCount(string $label, int $count): void
-    {
-        if (! $this->debug) {
-            return;
-        }
-
-        echo sprintf("  📊 %s: %d\n", $label, $count);
-    }
-
-    private function logValue(string $label, float $value): void
-    {
-        if (! $this->debug) {
-            return;
-        }
-
-        echo sprintf("  📈 %s: %.6f\n", $label, $value);
-    }
-
-    private function logSeparator(): void
-    {
-        if (! $this->debug) {
-            return;
-        }
-
-        echo str_repeat('-', 50)."\n";
     }
 }

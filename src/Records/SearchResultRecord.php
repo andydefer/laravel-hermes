@@ -6,6 +6,7 @@ namespace AndyDefer\LaravelHermes\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
+use AndyDefer\LaravelHermes\Collections\MatchRecordCollection;
 
 final class SearchResultRecord extends AbstractRecord
 {
@@ -13,7 +14,7 @@ final class SearchResultRecord extends AbstractRecord
         public readonly string $document_id,
         public readonly string $fingerprint,
         public readonly StrictAssociative $data,
-        public readonly array $matches,
+        public readonly MatchRecordCollection $matches,
         public readonly float $similarity,
     ) {}
 }
