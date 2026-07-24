@@ -42,7 +42,8 @@
         "orchestra/testbench": "^9.0|^10.0",
         "phpunit/phpunit": "^10.5|^11.0|^12.0",
         "mockery/mockery": "^1.6",
-        "laravel/pint": "^1.29"
+        "laravel/pint": "^1.29",
+        "laravel/tinker": "^2.11"
     },
     "suggest": {
         "andydefer/laravel-indexer": "Required for indexing and search capabilities"
