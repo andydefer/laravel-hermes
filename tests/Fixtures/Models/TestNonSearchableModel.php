@@ -6,6 +6,7 @@ namespace AndyDefer\LaravelHermes\Tests\Fixtures\Models;
 
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
+use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
 
 class TestNonSearchableModel extends Model implements Indexable
@@ -27,6 +28,11 @@ class TestNonSearchableModel extends Model implements Indexable
         return StrictAssociative::from([
             'name' => $this->name,
         ]);
+    }
+
+    public function getIndexableCluster(): ClusterVO
+    {
+        return ClusterVO::make('type', 'non_searchable');
     }
 
     public function getMorphClass()

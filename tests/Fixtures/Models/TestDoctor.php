@@ -6,6 +6,7 @@ namespace AndyDefer\LaravelHermes\Tests\Fixtures\Models;
 
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
+use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
 
 class TestDoctor extends Model implements Indexable
@@ -48,6 +49,14 @@ class TestDoctor extends Model implements Indexable
             'postal_code' => $this->postal_code,
             'hospital' => $this->hospital,
         ]);
+    }
+
+    public function getIndexableCluster(): ClusterVO
+    {
+        return ClusterVO::make('type', 'doctor')
+            ->with('status', $this->is_active ? 'active' : 'inactive')
+            ->whenNotEmpty('specialty', $this->specialty)
+            ->whenNotEmpty('city', $this->city);
     }
 
     public function getSearchResultFormat(): StrictAssociative

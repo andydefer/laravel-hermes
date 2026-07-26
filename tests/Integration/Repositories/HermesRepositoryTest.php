@@ -34,6 +34,7 @@ final class HermesRepositoryTest extends IntegrationTestCase
 
     private function createAndIndexUser(int $id, string $name, string $email, string $description = '', string $cluster = 'tenant:company_abc'): void
     {
+
         $user = TestUser::create([
             'id' => $id,
             'name' => $name,

@@ -6,6 +6,7 @@ namespace AndyDefer\LaravelHermes\Tests\Fixtures\Models;
 
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
+use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
@@ -50,6 +51,12 @@ class TestMedication extends Model implements Indexable
             'form' => $this->form,
             'description' => $this->description,
         ]);
+    }
+
+    public function getIndexableCluster(): ClusterVO
+    {
+        return ClusterVO::make('type', 'medication')
+            ->with('status', 'active');
     }
 
     public function getSearchResultFormat(): StrictAssociative

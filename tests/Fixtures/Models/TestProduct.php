@@ -6,6 +6,7 @@ namespace AndyDefer\LaravelHermes\Tests\Fixtures\Models;
 
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
+use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
 
 class TestProduct extends Model implements Indexable
@@ -36,6 +37,12 @@ class TestProduct extends Model implements Indexable
             'reference' => $this->reference,
             'description' => $this->description,
         ]);
+    }
+
+    public function getIndexableCluster(): ClusterVO
+    {
+        return ClusterVO::make('type', 'product')
+            ->with('status', 'published');
     }
 
     public function getSearchResultFormat(): StrictAssociative
