@@ -61,6 +61,6 @@ class TestUser extends Model implements Indexable
 
     public function addresses(): HasMany
     {
-        return $this->hasMany(TestAddress::class);
+        return $this->hasMany(TestAddress::class, 'user_id');
     }
 }

@@ -66,21 +66,23 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
 
     public function filterByMinSimilarity(float $minSimilarity): self
     {
-        return $this->filter(fn (SearchResultRecord $r) => $r->similarity >= $minSimilarity);
+        return $this->filter(function (SearchResultRecord $r) use ($minSimilarity) {
+            return $r->similarity >= $minSimilarity;
+        });
     }
 
     public function filterByField(string $field): self
     {
-        return $this->filter(
-            fn (SearchResultRecord $r) => $r->matches->filterByField($field)->isNotEmpty()
-        );
+        return $this->filter(function (SearchResultRecord $r) use ($field) {
+            return $r->matches->filterByField($field)->isNotEmpty();
+        });
     }
 
     public function filterByNamespace(string $namespace): self
     {
-        return $this->filter(
-            fn (SearchResultRecord $r) => str_starts_with($r->fingerprint, $namespace.'|')
-        );
+        return $this->filter(function (SearchResultRecord $r) use ($namespace) {
+            return str_starts_with($r->fingerprint, $namespace.'|');
+        });
     }
 
     public function filterByNamespaces(array $namespaces): self
@@ -111,9 +113,18 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
      * Les modèles non trouvés sont ignorés silencieusement.
      * Les instances sont retournées dans l'ordre de la collection.
      *
+     * @param  array<string>  $with  Relations à charger (ex: ['profile', 'profile.specialty'])
      * @return Collection<int, Model&Indexable>
      */
-    public function getModelInstances(): Collection
+    /**
+     * Récupère les instances des modèles pour tous les résultats en une seule requête par classe.
+     * Les modèles non trouvés sont ignorés silencieusement.
+     * Les instances sont retournées dans l'ordre de la collection.
+     *
+     * @param  array<string>  $with  Relations à charger (ex: ['profile', 'profile.specialty'])
+     * @return Collection<int, Model&Indexable>
+     */
+    public function getModelInstances(array $with = []): Collection
     {
         // Grouper les IDs par namespace/classe
         $groupedIds = [];
@@ -143,10 +154,27 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
         $models = [];
         foreach ($groupedIds as $class => $ids) {
             /** @var Model&Indexable $class */
-            $found = $class::whereIn('id', $ids)->get()->keyBy('id');
+            $query = $class::whereIn('id', $ids);
+
+            // Charger les relations si spécifiées
+            if (! empty($with)) {
+                $existingRelations = [];
+                foreach ($with as $relation) {
+                    if (method_exists($class, $relation)) {
+                        $existingRelations[] = $relation;
+                    }
+                }
+                if (! empty($existingRelations)) {
+                    $query->with($existingRelations);
+                }
+            }
+
+            $found = $query->get()->keyBy('id');
 
             foreach ($found as $model) {
-                $models[$model->getKey()] = $model;
+                // Utiliser une clé composite pour éviter les collisions d'ID entre différentes classes
+                $key = get_class($model).'|'.$model->getKey();
+                $models[$key] = $model;
             }
         }
 
@@ -158,9 +186,17 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
                 continue;
             }
 
+            $namespace = $parts[0];
             $id = $parts[1];
-            if (isset($models[$id])) {
-                $result[] = $models[$id];
+            $class = str_replace('.', '\\', $namespace);
+
+            if (! class_exists($class)) {
+                continue;
+            }
+
+            $key = $class.'|'.$id;
+            if (isset($models[$key])) {
+                $result[] = $models[$key];
             }
         }
 

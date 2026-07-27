@@ -8,6 +8,7 @@ use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
 use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TestAddress extends Model implements Indexable
 {
@@ -27,9 +28,9 @@ class TestAddress extends Model implements Indexable
         'is_active' => 'bool',
     ];
 
-    public function user()
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(TestUser::class);
+        return $this->belongsTo(TestUser::class, 'user_id');
     }
 
     public function shouldBeIndexed(): bool

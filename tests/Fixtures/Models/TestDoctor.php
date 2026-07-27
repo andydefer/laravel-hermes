@@ -79,12 +79,12 @@ class TestDoctor extends Model implements Indexable
         ]);
     }
 
-    public function getMorphClass(): string
+    public function getMorphClass()
     {
         return self::class;
     }
 
-    public function getKey(): int|string
+    public function getKey()
     {
         return $this->id;
     }
