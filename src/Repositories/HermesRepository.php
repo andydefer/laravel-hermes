@@ -8,15 +8,19 @@ use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\Contracts\Repositories\HermesRepositoryInterface;
 use AndyDefer\LaravelIndexer\Repositories\IndexedTokenRepository;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
+use AndyDefer\LaravelIndexer\Services\Composants\ClusterFilterApplier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 final class HermesRepository implements HermesRepositoryInterface
 {
+    private ClusterFilterApplier $clusterFilterApplier;
+
     public function __construct(
         private readonly IndexedTokenRepository $tokenRepository,
-    ) {}
+    ) {
+        $this->clusterFilterApplier = new ClusterFilterApplier;
+    }
 
     public function findTokensByNgrams(
         array $ngrams,
@@ -128,17 +132,12 @@ final class HermesRepository implements HermesRepositoryInterface
                         });
                     }
 
-                    if ($context->hasCluster()) {
-                        $filterQuery->whereHas('document', function ($documentQuery) use ($context) {
-                            $cluster = new ClusterVO($context->cluster);
-                            $clusterPairs = $cluster->all();
-
-                            foreach ($clusterPairs as $key => $values) {
-                                foreach ($values as $value) {
-                                    $documentQuery->where('cluster', 'LIKE', '%'.$key.':'.$value.'%');
-                                }
-                            }
-                        });
+                    if ($context->hasClusters()) {
+                        $this->clusterFilterApplier->applyClustersOnRelation(
+                            $filterQuery,
+                            $context->clusters,
+                            $context->clustersOperator
+                        );
                     }
                 });
             }

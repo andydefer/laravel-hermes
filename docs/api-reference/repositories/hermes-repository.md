@@ -2,7 +2,7 @@
 
 ## Description
 
-Repository pour l'interrogation des tokens indexés avec correspondance par n-grammes et filtrage contextuel.
+Repository pour la recherche de tokens indexés dans Laravel Hermes. Fournit des méthodes de requête avancées avec filtrage par n-grammes, champs, namespaces et clusters multiples.
 
 ## Hiérarchie / Implémentations
 
@@ -13,7 +13,16 @@ HermesRepositoryInterface
 
 ## Rôle principal
 
-Fournit des méthodes pour rechercher des tokens par n-grammes avec support de filtrage par champs, namespace, cluster, chargement des relations document et regroupement par document.
+`HermesRepository` est le point d'accès aux tokens indexés pour Laravel Hermes. Il :
+
+- **Recherche** : Recherche des tokens par n-grammes avec filtres
+- **Filtrage** : Filtre par champs, namespaces et clusters multiples (AND/OR/NOT)
+- **Regroupement** : Regroupe les tokens par document
+- **Comptage** : Compte les tokens correspondants
+
+## DETAILS
+
+[Voir la classe HermesRepository](https://github.com/andydefer/laravel-hermes/blob/main/src/Repositories/HermesRepository.php)
 
 ## API / Méthodes publiques
 
@@ -21,24 +30,19 @@ Fournit des méthodes pour rechercher des tokens par n-grammes avec support de f
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$ngrams` | `array<string>` | Les n-grammes à rechercher |
-| `$contexts` | `?ContextFilterVOCollection` | Filtres de contexte (logique OU entre les contextes) |
-| `$fields` | `?StringTypedCollection` | Noms des champs pour restreindre la recherche |
-| `$limit` | `int` | Nombre maximum de résultats |
-| `$withDocument` | `bool` | Charger la relation document en eager load |
+| `$ngrams` | `array<string>` | Liste des n-grammes à rechercher |
+| `$contexts` | `?ContextFilterVOCollection` | Filtres de contexte (namespace + clusters) |
+| `$fields` | `?StringTypedCollection` | Noms des champs à filtrer |
+| `$limit` | `int` | Nombre maximum de résultats (défaut: 100) |
+| `$withDocument` | `bool` | Charger la relation document (défaut: false) |
 
-**Retourne :** `Collection` - Collection de modèles de tokens
+**Retourne :** `Collection<int, IndexedToken>` - Collection de tokens
 
 **Exemple :**
 ```php
 $ngrams = ['joh', 'ohn', 'john'];
-$tokens = $repository->findTokensByNgrams($ngrams, limit: 10);
-
-foreach ($tokens as $token) {
-    echo $token->token; // 'joh', 'ohn', ou 'john'
-    echo $token->original_text; // 'John'
-    echo $token->field; // 'name'
-}
+$fields = (new StringTypedCollection())->add('name');
+$tokens = $repository->findTokensByNgrams($ngrams, fields: $fields, limit: 10);
 ```
 
 ---
@@ -47,18 +51,11 @@ foreach ($tokens as $token) {
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$ngrams` | `array<string>` | Les n-grammes à rechercher |
-| `$contexts` | `?ContextFilterVOCollection` | Filtres de contexte (logique OU entre les contextes) |
-| `$fields` | `?StringTypedCollection` | Noms des champs pour restreindre la recherche |
+| `$ngrams` | `array<string>` | Liste des n-grammes à rechercher |
+| `$contexts` | `?ContextFilterVOCollection` | Filtres de contexte |
+| `$fields` | `?StringTypedCollection` | Noms des champs à filtrer |
 
-**Retourne :** `Collection` - Collection de tokens distincts
-
-**Exemple :**
-```php
-$ngrams = ['joh'];
-$allTokens = $repository->getAllTokensByNgrams($ngrams);
-// Retourne tous les tokens distincts contenant 'joh'
-```
+**Retourne :** `Collection<int, IndexedToken>` - Collection complète de tokens
 
 ---
 
@@ -66,39 +63,27 @@ $allTokens = $repository->getAllTokensByNgrams($ngrams);
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$ngrams` | `array<string>` | Les n-grammes à rechercher |
-| `$contexts` | `?ContextFilterVOCollection` | Filtres de contexte (logique OU entre les contextes) |
-| `$fields` | `?StringTypedCollection` | Noms des champs pour restreindre la recherche |
-| `$minSimilarity` | `float` | Seuil de similarité minimum (réservé pour usage futur) |
+| `$ngrams` | `array<string>` | Liste des n-grammes à rechercher |
+| `$contexts` | `?ContextFilterVOCollection` | Filtres de contexte |
+| `$fields` | `?StringTypedCollection` | Noms des champs à filtrer |
+| `$minSimilarity` | `float` | Seuil de similarité minimum |
 
-**Retourne :** `array<string, array>` - Tableau groupé par `document_id` avec métadonnées du document et tokens
-
-**Structure de retour :**
-```php
-[
-    'document-id-1' => [
-        'document_id' => 'document-id-1',
-        'fingerprint' => 'App.Models.User|123',
-        'data' => ['name' => 'John Doe', 'email' => 'john@example.com'],
-        'tokens' => [
-            ['id' => 'token-id', 'token' => 'joh', 'original_text' => 'John', 'field' => 'name']
-        ]
-    ]
-]
-```
+**Retourne :** `array<string, array{document_id, fingerprint, data, tokens}>` - Tokens groupés par document
 
 **Exemple :**
 ```php
-$ngrams = ['joh', 'ohn'];
-$grouped = $repository->getTokensGroupedByDocument($ngrams);
-
-foreach ($grouped as $documentId => $data) {
-    echo "Document: $documentId\n";
-    echo "Fingerprint: {$data['fingerprint']}\n";
-    foreach ($data['tokens'] as $token) {
-        echo "  Token: {$token['token']} (field: {$token['field']})\n";
-    }
-}
+$grouped = $repository->getTokensGroupedByDocument(['joh', 'ohn']);
+// [
+//     'doc-uuid-1' => [
+//         'document_id' => 'doc-uuid-1',
+//         'fingerprint' => 'App.Models.User|123',
+//         'data' => ['name' => 'John Doe'],
+//         'tokens' => [
+//             ['id' => '...', 'token' => 'joh', 'original_text' => 'John', 'field' => 'name'],
+//             ['id' => '...', 'token' => 'ohn', 'original_text' => 'John', 'field' => 'name']
+//         ]
+//     ]
+// ]
 ```
 
 ---
@@ -107,108 +92,120 @@ foreach ($grouped as $documentId => $data) {
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$ngrams` | `array<string>` | Les n-grammes à rechercher |
-| `$contexts` | `?ContextFilterVOCollection` | Filtres de contexte (logique OU entre les contextes) |
-| `$fields` | `?StringTypedCollection` | Noms des champs pour restreindre la recherche |
+| `$ngrams` | `array<string>` | Liste des n-grammes à rechercher |
+| `$contexts` | `?ContextFilterVOCollection` | Filtres de contexte |
+| `$fields` | `?StringTypedCollection` | Noms des champs à filtrer |
 
-**Retourne :** `int` - Nombre de tokens distincts correspondants
+**Retourne :** `int` - Nombre de tokens correspondants
 
-**Exemple :**
-```php
-$ngrams = ['joh', 'ohn'];
-$count = $repository->countTokensByNgrams($ngrams);
-echo "Nombre de tokens trouvés: $count";
-```
+---
+
+## Méthodes internes (privées)
+
+### `applyFilters(Builder $query, ?ContextFilterVOCollection $contexts, ?StringTypedCollection $fields): void`
+
+Applique les filtres à la requête.
+
+- Filtre par champs (`field IN (... )`)
+- Filtre par namespace (`fingerprint LIKE 'namespace|%'`)
+- Filtre par clusters via `ClusterFilterApplier` (AND/OR/NOT)
+
+**Logique OR entre les contextes :** Chaque `ContextFilterVO` est combiné avec `OR`.
 
 ---
 
 ## Cas d'utilisation
 
-### Cas 1 : Recherche de tokens pour l'autocomplétion
+### Cas 1 : Recherche simple de tokens
 
 ```php
-<?php
-
-// Rechercher des tokens pour un préfixe d'autocomplétion
-$prefix = 'joh';
-$ngrams = $this->generateNgrams($prefix); // ['joh', 'ohn', 'john']
-$tokens = $repository->findTokensByNgrams($ngrams, limit: 10);
-
-$suggestions = $tokens->pluck('original_text')->unique()->values();
-// ['John', 'Johanna', 'Johnson']
+$ngrams = ['joh', 'ohn'];
+$tokens = $repository->findTokensByNgrams($ngrams);
 ```
 
-### Cas 2 : Recherche avec filtres de contexte
+### Cas 2 : Recherche par champs
 
 ```php
-<?php
+$fields = new StringTypedCollection();
+$fields->add('name');
 
-// Rechercher des tokens dans un namespace spécifique
+$tokens = $repository->findTokensByNgrams($ngrams, fields: $fields);
+```
+
+### Cas 3 : Filtrage par namespace
+
+```php
 $contexts = new ContextFilterVOCollection();
 $contexts->add(new ContextFilterVO('App.Models.User'));
 
-$ngrams = ['joh', 'ohn'];
 $tokens = $repository->findTokensByNgrams($ngrams, contexts: $contexts);
-
-// Résultat: uniquement les tokens des documents User
 ```
 
-### Cas 3 : Regroupement par document pour recherche
+### Cas 4 : Filtrage par cluster AND
 
 ```php
-<?php
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+$clusters->add(new ClusterVO('env:production@AND'));
 
-// Récupérer les tokens groupés par document pour afficher les résultats complets
-$ngrams = ['joh', 'ohn', 'john'];
-$grouped = $repository->getTokensGroupedByDocument($ngrams);
+$contexts = new ContextFilterVOCollection();
+$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
 
-foreach ($grouped as $documentId => $data) {
-    // Afficher les données du document
-    echo "Document: {$data['fingerprint']}\n";
-    
-    // Afficher les tokens correspondants
-    foreach ($data['tokens'] as $token) {
-        echo "  Match: {$token['original_text']} (field: {$token['field']})\n";
-    }
-}
+$tokens = $repository->findTokensByNgrams($ngrams, contexts: $contexts);
 ```
+
+### Cas 5 : Filtrage par cluster OR
+
+```php
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('role_doctor:true@OR'));
+$clusters->add(new ClusterVO('role_admin:true@OR'));
+
+$contexts = new ContextFilterVOCollection();
+$contexts->add(new ContextFilterVO(null, $clusters, 'OR'));
+
+$tokens = $repository->findTokensByNgrams($ngrams, contexts: $contexts);
+```
+
+### Cas 6 : Groupement par document
+
+```php
+$grouped = $repository->getTokensGroupedByDocument(['joh', 'ohn']);
+// Retourne les tokens regroupés par document pour analyse
+```
+
+---
+
+## Flux d'exécution
+
+```
+1. Construction de la requête de base
+2. Application des filtres:
+   a. Filtre par champs
+   b. Filtre par namespace
+   c. Filtre par clusters (AND/OR/NOT)
+3. Application des options (limit, withDocument)
+4. Exécution de la requête
+5. Retour des résultats
+```
+
+## Performance
+
+- Utilisation de `distinct()` pour éviter les doublons
+- Filtrage par `whereIn` pour les champs
+- Filtrage par `whereHas` pour les relations
+- `ClusterFilterApplier` optimise les conditions `LIKE`
 
 ---
 
 ## Gestion des erreurs
 
-| Situation | Exception | Message |
-|-----------|-----------|---------|
-| Aucun n-gramme fourni | - | Retourne une collection vide |
-| Contextes invalides | `InvalidArgumentException` | Dépend de `ContextFilterVO` |
-| Erreur de base de données | `QueryException` | Erreur PDO/SQL |
-
----
-
-## Intégration
-
-Ce repository s'intègre avec :
-
-- **`IndexedTokenRepository`** : Repository de Laravel Indexer pour l'accès aux tokens
-- **`ContextFilterVO`** : Value Object pour le filtrage contextuel
-- **`StringTypedCollection`** : Collection typée pour les noms de champs
-- **`ContextFilterVOCollection`** : Collection typée pour les contextes
-
----
-
-## Performance
-
-| Opération | Complexité | Notes |
-|-----------|------------|-------|
-| `findTokensByNgrams()` | O(n log n) | n = nombre de tokens correspondants |
-| `getAllTokensByNgrams()` | O(n) | Récupère tous les tokens distincts |
-| `getTokensGroupedByDocument()` | O(n) | n = nombre de tokens, avec chargement des documents |
-| `countTokensByNgrams()` | O(1) | Utilise `COUNT(DISTINCT)` en base de données |
-
-**Optimisations :**
-- Utilise `distinct()` pour éviter les doublons
-- Utilise `limit()` pour contrôler la taille du résultat
-- Filtres appliqués en base de données (pas en mémoire)
+| Situation | Comportement |
+|-----------|--------------|
+| `ContextFilterVO` sans namespace ni clusters | Exception levée à la construction |
+| Cluster sans mode | Exception levée par `ClusterFilterApplier` |
+| Opérateur invalide | Exception levée par `ClusterFilterApplier` |
+| Aucun n-gramme trouvé | Collection vide |
 
 ---
 
@@ -216,9 +213,15 @@ Ce repository s'intègre avec :
 
 | Version | Support |
 |---------|---------|
-| PHP 8.1+ | ✅ Complet |
+| PHP 8.2+ | ✅ Complet |
 | Laravel 10.x+ | ✅ Complet |
-| Laravel Indexer 0.6.1+ | ✅ Requis |
+| Laravel Indexer 0.21.1+ | ✅ Requis |
+
+## Dépendances
+
+- `IndexedTokenRepository` - Repository des tokens
+- `ClusterFilterApplier` - Application des filtres de clusters
+- `ContextFilterVO` - Filtre de contexte (namespace + clusters)
 
 ---
 
@@ -232,40 +235,60 @@ declare(strict_types=1);
 use AndyDefer\LaravelHermes\Repositories\HermesRepository;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
+use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
+use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
+use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 
 $repository = app(HermesRepository::class);
 
 // 1. Recherche simple
 $ngrams = ['joh', 'ohn', 'john'];
-$tokens = $repository->findTokensByNgrams($ngrams, limit: 20);
+$tokens = $repository->findTokensByNgrams($ngrams);
 
 // 2. Recherche avec filtres
+$fields = new StringTypedCollection();
+$fields->add('name');
+
+$tokens = $repository->findTokensByNgrams($ngrams, fields: $fields);
+
+// 3. Recherche par namespace
 $contexts = new ContextFilterVOCollection();
 $contexts->add(new ContextFilterVO('App.Models.User'));
-$contexts->add(new ContextFilterVO(null, 'tenant:company_abc'));
 
-$filteredTokens = $repository->findTokensByNgrams(
-    $ngrams,
-    contexts: $contexts,
-    limit: 10
-);
+$tokens = $repository->findTokensByNgrams($ngrams, contexts: $contexts);
 
-// 3. Regroupement par document
-$grouped = $repository->getTokensGroupedByDocument(
-    $ngrams,
-    contexts: $contexts
-);
+// 4. Recherche par clusters AND
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+$clusters->add(new ClusterVO('env:production@AND'));
 
-// 4. Compter les tokens
-$count = $repository->countTokensByNgrams($ngrams, contexts: $contexts);
-echo "Nombre de tokens: $count\n";
+$contexts = new ContextFilterVOCollection();
+$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
+
+$tokens = $repository->findTokensByNgrams($ngrams, contexts: $contexts);
+
+// 5. Recherche par clusters OR
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('role_doctor:true@OR'));
+$clusters->add(new ClusterVO('role_admin:true@OR'));
+
+$contexts = new ContextFilterVOCollection();
+$contexts->add(new ContextFilterVO(null, $clusters, 'OR'));
+
+$tokens = $repository->findTokensByNgrams($ngrams, contexts: $contexts);
+
+// 6. Groupement par document
+$grouped = $repository->getTokensGroupedByDocument($ngrams);
+
+// 7. Comptage
+$count = $repository->countTokensByNgrams($ngrams);
 ```
-
----
 
 ## Voir aussi
 
 - `HermesRepositoryInterface` - Interface du repository
-- `ContextFilterVO` - Value Object de filtrage contextuel
-- `IndexedTokenRepository` - Repository de Laravel Indexer
-- `Laravel Hermes - Documentation` - Documentation générale du package
+- `ContextFilterVO` - Filtre de contexte
+- `ClusterFilterApplier` - Application des filtres de clusters
+- `IndexedTokenRepository` - Repository des tokens
+- `HermesService` - Service principal
+- [Laravel Indexer - Documentation](https://github.com/andydefer/laravel-indexer)

@@ -17,6 +17,7 @@ use AndyDefer\LaravelHermes\Tests\Fixtures\Models\TestProduct;
 use AndyDefer\LaravelHermes\Tests\Fixtures\Models\TestUser;
 use AndyDefer\LaravelHermes\Tests\IntegrationTestCase;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
+use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
 use AndyDefer\LaravelIndexer\Contracts\IndexerInterface;
 use AndyDefer\LaravelIndexer\Services\Composants\IndexableRecordFactory;
 use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
@@ -70,7 +71,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_complete_returns_completions(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
 
         $request = CompletionRequestRecord::from([
@@ -78,10 +78,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'limit' => 10,
         ]);
 
-        // Act
         $results = $this->hermes->complete($request);
 
-        // Assert
         $this->assertInstanceOf(CompletionResultRecordCollection::class, $results);
         $this->assertNotEmpty($results);
 
@@ -93,7 +91,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_complete_with_multiple_ngrams(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
         $this->createAndIndexUser(2, 'Jane Smith', 'jane@example.com');
 
@@ -102,16 +99,13 @@ final class HermesServiceTest extends IntegrationTestCase
             'limit' => 10,
         ]);
 
-        // Act
         $results = $this->hermes->complete($request);
 
-        // Assert
         $this->assertNotEmpty($results);
     }
 
     public function test_complete_with_fields_filter(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
 
         $request = CompletionRequestRecord::from([
@@ -119,10 +113,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'limit' => 10,
         ]);
 
-        // Act
         $results = $this->hermes->complete($request);
 
-        // Assert
         $this->assertNotEmpty($results);
         foreach ($results as $result) {
             $this->assertContains($result->field, ['name', 'email']);
@@ -131,7 +123,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_complete_with_namespace_filter(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
         $this->createAndIndexProduct(1, 'Product X', 'REF-001');
 
@@ -144,10 +135,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'contexts' => $contexts,
         ]);
 
-        // Act
         $results = $this->hermes->complete($request);
 
-        // Assert
         $this->assertNotEmpty($results);
         foreach ($results as $result) {
             $this->assertEquals('John', $result->original_text);
@@ -156,12 +145,14 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_complete_with_cluster_filter(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
         $this->createAndIndexUser(2, 'Johnny Cash', 'johnny@example.com', cluster: 'tenant:company_xyz');
 
+        $clusters = new ClusterVOCollection;
+        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO(null, 'tenant:company_abc'));
+        $contexts->add(new ContextFilterVO(null, $clusters, 'AND'));
 
         $request = CompletionRequestRecord::from([
             'query' => 'joh=name',
@@ -169,10 +160,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'contexts' => $contexts,
         ]);
 
-        // Act
         $results = $this->hermes->complete($request);
 
-        // Assert
         $this->assertNotEmpty($results);
         $this->assertCount(1, $results);
         $this->assertEquals('John', $results->first()->original_text);
@@ -180,13 +169,26 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_complete_with_multiple_contexts(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
         $this->createAndIndexProduct(1, 'Product X', 'REF-001', cluster: 'tenant:company_xyz');
 
+        $clustersUser = new ClusterVOCollection;
+        $clustersUser->add(new ClusterVO('tenant:company_abc@AND'));
+
+        $clustersProduct = new ClusterVOCollection;
+        $clustersProduct->add(new ClusterVO('tenant:company_xyz@AND'));
+
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser'));
-        $contexts->add(new ContextFilterVO(null, 'tenant:company_xyz'));
+        $contexts->add(new ContextFilterVO(
+            'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser',
+            $clustersUser,
+            'AND'
+        ));
+        $contexts->add(new ContextFilterVO(
+            null,
+            $clustersProduct,
+            'AND'
+        ));
 
         $request = CompletionRequestRecord::from([
             'query' => new SearchQueryVO('joh=name|pro=name'),
@@ -194,16 +196,13 @@ final class HermesServiceTest extends IntegrationTestCase
             'contexts' => $contexts,
         ]);
 
-        // Act
         $results = $this->hermes->complete($request);
 
-        // Assert
         $this->assertNotEmpty($results);
     }
 
     public function test_complete_returns_empty_when_no_match(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
 
         $request = CompletionRequestRecord::from([
@@ -211,16 +210,13 @@ final class HermesServiceTest extends IntegrationTestCase
             'limit' => 10,
         ]);
 
-        // Act
         $results = $this->hermes->complete($request);
 
-        // Assert
         $this->assertEmpty($results);
     }
 
     public function test_complete_respects_limit(): void
     {
-        // Arrange
         for ($i = 1; $i <= 10; $i++) {
             $this->createAndIndexUser($i, "User $i", "user$i@example.com");
         }
@@ -230,10 +226,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'limit' => 3,
         ]);
 
-        // Act
         $results = $this->hermes->complete($request);
 
-        // Assert
         $this->assertLessThanOrEqual(3, $results->count());
     }
 
@@ -241,7 +235,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_suggest_returns_suggestions(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'developer', 'dev@example.com', 'developer');
 
         $request = SuggestionRequestRecord::from([
@@ -250,10 +243,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->suggest($request);
 
-        // Assert
         $this->assertInstanceOf(SuggestionResultRecordCollection::class, $results);
         $this->assertNotEmpty($results);
 
@@ -264,7 +255,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_suggest_with_multiple_ngrams(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'developer', 'dev@example.com', 'developer');
         $this->createAndIndexUser(2, 'designer', 'design@example.com', 'designer');
 
@@ -274,16 +264,13 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->suggest($request);
 
-        // Assert
         $this->assertNotEmpty($results);
     }
 
     public function test_suggest_with_fields_filter(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'developer', 'dev@example.com', 'developer');
 
         $request = SuggestionRequestRecord::from([
@@ -292,10 +279,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->suggest($request);
 
-        // Assert
         $this->assertNotEmpty($results);
         foreach ($results as $result) {
             $this->assertEquals('description', $result->field);
@@ -304,7 +289,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_suggest_with_namespace_filter(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'developer', 'dev@example.com', 'developer');
 
         $contexts = new ContextFilterVOCollection;
@@ -317,10 +301,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->suggest($request);
 
-        // Assert
         $this->assertNotEmpty($results);
         foreach ($results as $result) {
             $this->assertEquals('developer', $result->original_text);
@@ -329,7 +311,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_suggest_returns_empty_when_no_match(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'developer', 'dev@example.com');
 
         $request = SuggestionRequestRecord::from([
@@ -338,16 +319,13 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->suggest($request);
 
-        // Assert
         $this->assertEmpty($results);
     }
 
     public function test_suggest_respects_limit(): void
     {
-        // Arrange
         for ($i = 1; $i <= 10; $i++) {
             $this->createAndIndexUser($i, "developer_$i", "dev$i@example.com");
         }
@@ -358,10 +336,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.1,
         ]);
 
-        // Act
         $results = $this->hermes->suggest($request);
 
-        // Assert
         $this->assertLessThanOrEqual(3, $results->count());
     }
 
@@ -369,7 +345,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_search_returns_documents(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com', 'Software Developer');
 
         $request = SearchRequestRecord::from([
@@ -378,10 +353,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->search($request);
 
-        // Assert
         $this->assertInstanceOf(SearchResultRecordCollection::class, $results);
         $this->assertNotEmpty($results);
 
@@ -398,7 +371,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_search_with_multiple_ngrams(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com', 'Software Developer');
         $this->createAndIndexUser(2, 'Jane Smith', 'jane@example.com', 'Senior Developer');
 
@@ -408,16 +380,13 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->search($request);
 
-        // Assert
         $this->assertNotEmpty($results);
     }
 
     public function test_search_with_fields_filter(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
 
         $request = SearchRequestRecord::from([
@@ -426,10 +395,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->search($request);
 
-        // Assert
         $this->assertNotEmpty($results);
         foreach ($results as $result) {
             foreach ($result->matches as $match) {
@@ -441,7 +408,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_search_with_namespace_filter(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
         $this->createAndIndexProduct(1, 'Product X', 'REF-001');
 
@@ -455,10 +421,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->search($request);
 
-        // Assert
         $this->assertNotEmpty($results);
         foreach ($results as $result) {
             $this->assertStringContainsString('TestUser', $result->fingerprint);
@@ -467,12 +431,14 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_search_with_cluster_filter(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
         $this->createAndIndexUser(2, 'Jane Smith', 'jane@example.com', cluster: 'tenant:company_xyz');
 
+        $clusters = new ClusterVOCollection;
+        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO(null, 'tenant:company_abc'));
+        $contexts->add(new ContextFilterVO(null, $clusters, 'AND'));
 
         $request = SearchRequestRecord::from([
             'query' => new SearchQueryVO('john=name|jane=name'),
@@ -481,10 +447,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->search($request);
 
-        // Assert
         $this->assertNotEmpty($results);
         foreach ($results as $result) {
             $this->assertStringContainsString('TestUser|1', $result->fingerprint);
@@ -492,15 +456,51 @@ final class HermesServiceTest extends IntegrationTestCase
         }
     }
 
+    public function test_search_with_cluster_filter_or(): void
+    {
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
+        $this->createAndIndexUser(2, 'Jane Smith', 'jane@example.com', cluster: 'tenant:company_xyz');
+
+        $clusters = new ClusterVOCollection;
+        $clusters->add(new ClusterVO('tenant:company_abc@OR'));
+
+        $contexts = new ContextFilterVOCollection;
+        $contexts->add(new ContextFilterVO(null, $clusters, 'OR'));
+
+        $request = SearchRequestRecord::from([
+            'query' => new SearchQueryVO('john=name|jane=name'),
+            'limit' => 20,
+            'contexts' => $contexts,
+            'min_similarity' => 0.3,
+        ]);
+
+        $results = $this->hermes->search($request);
+
+        $this->assertNotEmpty($results);
+    }
+
     public function test_search_with_multiple_contexts(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
         $this->createAndIndexProduct(1, 'Product X', 'REF-001', cluster: 'tenant:company_xyz');
 
+        $clustersUser = new ClusterVOCollection;
+        $clustersUser->add(new ClusterVO('tenant:company_abc@AND'));
+
+        $clustersProduct = new ClusterVOCollection;
+        $clustersProduct->add(new ClusterVO('tenant:company_xyz@AND'));
+
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser'));
-        $contexts->add(new ContextFilterVO(null, 'tenant:company_xyz'));
+        $contexts->add(new ContextFilterVO(
+            'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser',
+            $clustersUser,
+            'AND'
+        ));
+        $contexts->add(new ContextFilterVO(
+            null,
+            $clustersProduct,
+            'AND'
+        ));
 
         $request = SearchRequestRecord::from([
             'query' => new SearchQueryVO('john=name|product=name'),
@@ -509,16 +509,13 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->search($request);
 
-        // Assert
         $this->assertNotEmpty($results);
     }
 
     public function test_search_returns_document_with_matches_detail(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com', 'Software Developer');
 
         $request = SearchRequestRecord::from([
@@ -527,10 +524,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->search($request);
 
-        // Assert
         $this->assertNotEmpty($results);
 
         $first = $results->first();
@@ -548,7 +543,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_search_returns_empty_when_no_match(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
 
         $request = SearchRequestRecord::from([
@@ -557,16 +551,13 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.3,
         ]);
 
-        // Act
         $results = $this->hermes->search($request);
 
-        // Assert
         $this->assertEmpty($results);
     }
 
     public function test_search_respects_limit(): void
     {
-        // Arrange
         for ($i = 1; $i <= 10; $i++) {
             $this->createAndIndexUser($i, "User $i", "user$i@example.com");
         }
@@ -577,10 +568,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'min_similarity' => 0.1,
         ]);
 
-        // Act
         $results = $this->hermes->search($request);
 
-        // Assert
         $this->assertLessThanOrEqual(5, $results->count());
     }
 
@@ -588,7 +577,6 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_search_with_complex_query_and_filters(): void
     {
-        // Arrange
         $this->createAndIndexUser(1, 'John Developer', 'john@example.com', 'Software Engineer');
         $this->createAndIndexUser(2, 'Jane Designer', 'jane@example.com', 'UI/UX Designer');
         $this->createAndIndexProduct(1, 'Laptop Pro', 'REF-001', 'High performance laptop');
@@ -604,10 +592,8 @@ final class HermesServiceTest extends IntegrationTestCase
             'use_phonetic' => true,
         ]);
 
-        // Act
         $results = $this->hermes->search($request);
 
-        // Assert
         $this->assertNotEmpty($results);
         foreach ($results as $result) {
             $this->assertStringContainsString('TestUser', $result->fingerprint);
@@ -619,52 +605,67 @@ final class HermesServiceTest extends IntegrationTestCase
     public function test_context_filter_vo_throws_exception_when_empty(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('At least one of namespace or cluster must be provided');
+        $this->expectExceptionMessage('At least one of namespace or clusters must be provided');
 
         new ContextFilterVO(null, null);
     }
 
     public function test_context_filter_vo_has_namespace(): void
     {
-        // Arrange
         $namespace = 'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser';
 
-        // Act
         $context = new ContextFilterVO($namespace, null);
 
-        // Assert
         $this->assertTrue($context->hasNamespace());
-        $this->assertFalse($context->hasCluster());
+        $this->assertFalse($context->hasClusters());
         $this->assertEquals($namespace, $context->namespace);
     }
 
-    public function test_context_filter_vo_has_cluster(): void
+    public function test_context_filter_vo_has_clusters(): void
     {
-        // Arrange
-        $cluster = 'tenant:company_abc';
+        $clusters = new ClusterVOCollection;
+        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
 
-        // Act
-        $context = new ContextFilterVO(null, $cluster);
+        $context = new ContextFilterVO(null, $clusters, 'AND');
 
-        // Assert
         $this->assertFalse($context->hasNamespace());
-        $this->assertTrue($context->hasCluster());
-        $this->assertEquals($cluster, $context->cluster);
+        $this->assertTrue($context->hasClusters());
+        $this->assertEquals($clusters, $context->clusters);
+        $this->assertEquals('AND', $context->clustersOperator);
     }
 
     public function test_context_filter_vo_has_both(): void
     {
-        // Arrange
         $namespace = 'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser';
-        $cluster = 'tenant:company_abc';
+        $clusters = new ClusterVOCollection;
+        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
 
-        // Act
-        $context = new ContextFilterVO($namespace, $cluster);
+        $context = new ContextFilterVO($namespace, $clusters, 'AND');
 
-        // Assert
         $this->assertTrue($context->hasNamespace());
-        $this->assertTrue($context->hasCluster());
+        $this->assertTrue($context->hasClusters());
         $this->assertEquals($namespace, $context->namespace);
-        $this->assertEquals($cluster, $context->cluster);
+        $this->assertEquals($clusters, $context->clusters);
+        $this->assertEquals('AND', $context->clustersOperator);
+    }
+
+    public function test_context_filter_vo_with_clusters_or_operator(): void
+    {
+        $clusters = new ClusterVOCollection;
+        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+
+        $context = new ContextFilterVO(null, $clusters, 'OR');
+
+        $this->assertEquals('OR', $context->clustersOperator);
+    }
+
+    public function test_context_filter_vo_with_clusters_not_operator(): void
+    {
+        $clusters = new ClusterVOCollection;
+        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+
+        $context = new ContextFilterVO(null, $clusters, 'NOT');
+
+        $this->assertEquals('NOT', $context->clustersOperator);
     }
 }

@@ -2,7 +2,7 @@
 
 ## Description
 
-Service principal orchestrant les opérations de complétion, suggestion et recherche textuelle en utilisant le repository Hermes et le calculateur de similarité.
+Service principal orchestrant les opérations de recherche intelligente pour Laravel Hermes. Gère l'autocomplétion, la correction orthographique et la recherche textuelle avec filtres avancés.
 
 ## Hiérarchie / Implémentations
 
@@ -13,11 +13,15 @@ HermesInterface
 
 ## Rôle principal
 
-Agit comme une façade orchestrant trois opérations principales :
+`HermesService` agit comme une façade orchestrant trois opérations principales :
 
 - **COMPLETION** : Complète un texte partiel avec des tokens existants
 - **SUGGESTION** : Propose des mots alternatifs basés sur la similarité
-- **SEARCH** : Recherche complète retournant des documents entiers
+- **SEARCH** : Recherche complète retournant des documents entiers avec leurs métadonnées
+
+## DETAILS
+
+[Voir la classe HermesService](https://github.com/andydefer/laravel-hermes/blob/main/src/Services/HermesService.php)
 
 ## API / Méthodes publiques
 
@@ -74,8 +78,14 @@ $results = $hermes->suggest($request);
 
 **Exemple :**
 ```php
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+
 $request = SearchRequestRecord::from([
     'query' => new SearchQueryVO('john=name,email|developer=description'),
+    'contexts' => new ContextFilterVOCollection()->add(
+        new ContextFilterVO('App.Models.User', $clusters, 'AND')
+    ),
     'min_similarity' => 0.3,
     'limit' => 20
 ]);
@@ -84,49 +94,87 @@ $results = $hermes->search($request);
 // Retourne les documents contenant "john" dans name/email ET "developer" dans description
 ```
 
-## Détails de l'algorithme
+---
 
-### 1. COMPLETION
+## Méthodes internes (privées)
 
-1. Extrait les n-grammes de la requête
-2. Pour chaque n-gramme, génère les n-grammes lexicaux et métaphoniques
-3. Recherche les tokens correspondants via le repository
-4. Calcule la similarité entre le n-gramme original et le token
-5. Regroupe les résultats par document
-6. Calcule la similarité moyenne
-7. Trie par similarité décroissante
-8. Limite au nombre demandé
+### `generateTermNgrams(string $term): array`
 
-### 2. SUGGESTION
+Génère les n-grammes lexicaux et métaphoniques à partir d'un terme.
 
-1. Extrait les n-grammes de la requête
-2. Pour chaque n-gramme, génère les n-grammes lexicaux et métaphoniques
-3. Recherche les tokens candidats avec une limite plus large (`limit * 10`)
-4. Calcule la similarité avancée via `SimilarityCalculatorService`
-5. Filtre les scores inférieurs au seuil `min_similarity`
-6. Regroupe les résultats par document
-7. Calcule la similarité moyenne
-8. Trie par similarité décroissante
-9. Limite au nombre demandé
+- Normalisation du texte
+- Génération des n-grammes lexicaux
+- Génération du métaphone et de ses n-grammes
+- Fusion et dédoublonnage
 
-### 3. SEARCH
+**Retourne :** `array<string>` - N-grammes uniques
 
-1. Extrait les n-grammes de la requête
-2. Pour chaque n-gramme, génère les n-grammes lexicaux et métaphoniques
-3. Récupère les tokens groupés par document via le repository
-4. Calcule la similarité pour chaque match
-5. Filtre les scores inférieurs au seuil
-6. Aggrège les matches par document
-7. Calcule la similarité moyenne du document
-8. Trie par similarité décroissante
-9. Limite au nombre demandé
+---
+
+### `createStringCollection(array $fields): ?StringTypedCollection`
+
+Crée une collection typée à partir d'un tableau de noms de champs.
+
+**Retourne :** `?StringTypedCollection` - Collection ou `null` si vide
+
+---
+
+### `calculateSimilarity(string $query, string $token): float`
+
+Calcule la similarité entre une requête et un token.
+
+- Normalisation des deux textes
+- Délégation au `SimilarityCalculatorService`
+
+**Retourne :** `float` - Score entre 0.0 et 1.0
+
+---
+
+### `buildCompletionResultCollection(array $allResults): CompletionResultRecordCollection`
+
+Construit la collection de résultats de complétion.
+
+- Calcule la similarité moyenne par document
+- Crée les records de résultats
+
+---
+
+### `buildSuggestionResultCollection(array $allResults): SuggestionResultRecordCollection`
+
+Construit la collection de résultats de suggestion.
+
+- Calcule la similarité moyenne par document
+- Crée les records de résultats
+
+---
+
+### `buildSearchResultCollection(array $documents): SearchResultRecordCollection`
+
+Construit la collection de résultats de recherche.
+
+- Filtre les documents sans similarités
+- Calcule la similarité moyenne par document
+- Ajoute les matches et les métadonnées
+
+---
+
+### `sortBySimilarityDescending(array $items): array`
+
+Trie les résultats par similarité décroissante.
+
+---
+
+### `sliceCollection(array $items, int $limit, string $collectionClass): object`
+
+Tranche une collection et crée une nouvelle instance de la classe cible.
+
+---
 
 ## Cas d'utilisation
 
 ### Cas 1 : Autocomplétion simple
 
 ```php
-// L'utilisateur tape "joh"
 $request = CompletionRequestRecord::from([
     'query' => new SearchQueryVO('joh=name,email'),
     'limit' => 10
@@ -139,7 +187,6 @@ $results = $hermes->complete($request);
 ### Cas 2 : Correction de fautes
 
 ```php
-// L'utilisateur a écrit "devloper"
 $request = SuggestionRequestRecord::from([
     'query' => new SearchQueryVO('devloper=skills'),
     'min_similarity' => 0.3,
@@ -150,12 +197,19 @@ $results = $hermes->suggest($request);
 // Suggestions: "developer" (0.92), "development" (0.78), "deploy" (0.65)
 ```
 
-### Cas 3 : Recherche avancée
+### Cas 3 : Recherche avancée avec clusters
 
 ```php
-// Recherche multi-critères avec contexte
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+$clusters->add(new ClusterVO('env:production@AND'));
+
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User'));
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    $clusters,
+    'AND'
+));
 
 $request = SearchRequestRecord::from([
     'query' => new SearchQueryVO('john=name,email|developer=description'),
@@ -165,33 +219,57 @@ $request = SearchRequestRecord::from([
 ]);
 
 $results = $hermes->search($request);
-// Documents User contenant "john" ET "developer"
+// Documents User tenant company_abc en production contenant "john" ET "developer"
 ```
 
-### Cas 4 : Recherche avec cluster
+### Cas 4 : Recherche multi-contextes (OR)
 
 ```php
+$clustersUser = new ClusterVOCollection();
+$clustersUser->add(new ClusterVO('tenant:company_abc@AND'));
+
+$clustersProduct = new ClusterVOCollection();
+$clustersProduct->add(new ClusterVO('tenant:company_xyz@AND'));
+
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO(null, 'tenant:company_abc'));
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    $clustersUser,
+    'AND'
+));
+$contexts->add(new ContextFilterVO(
+    'App.Models.Product',
+    $clustersProduct,
+    'AND'
+));
 
 $request = SearchRequestRecord::from([
-    'query' => new SearchQueryVO('john=name'),
+    'query' => new SearchQueryVO('john=name|product=name'),
     'contexts' => $contexts,
-    'limit' => 10
+    'limit' => 20
 ]);
 
 $results = $hermes->search($request);
-// Documents du tenant company_abc contenant "john"
+// Users de company_abc OU Products de company_xyz
 ```
 
-## Gestion des erreurs
+---
 
-| Situation | Comportement |
-|-----------|--------------|
-| Requête vide | Retourne une collection vide |
-| Aucun n-gramme généré | Passe au n-gramme suivant |
-| Aucun token trouvé | Passe au n-gramme suivant |
-| Score inférieur au seuil | Token ignoré (suggestion/search) |
+## Flux d'exécution
+
+```
+1. Réception de la requête
+2. Extraction des n-grammes de la requête
+3. Pour chaque n-gramme:
+   a. Génération des n-grammes lexicaux et métaphoniques
+   b. Recherche des tokens via HermesRepository
+   c. Calcul des similarités
+   d. Agrégation des résultats par document
+4. Construction de la collection de résultats
+5. Tri par similarité décroissante
+6. Limitation du nombre de résultats
+7. Retour de la collection
+```
 
 ## Performance
 
@@ -199,21 +277,34 @@ $results = $hermes->search($request);
 |-----------|----------------|-------|
 | COMPLETION | `limit * 2` | Récupère 2x plus de tokens pour meilleurs résultats |
 | SUGGESTION | `limit * 10` | Récupère 10x plus de candidats pour meilleures suggestions |
-
-**Temps typique :** Dépend du nombre de n-grammes et de tokens
+| SEARCH | `limit * 1` | Récupère exactement le nombre demandé |
 
 **Optimisations :**
 - Utilisation de `distinct()` pour éviter les doublons
 - Regroupement par document pour éviter les calculs redondants
 - Calcul de similarité uniquement sur les tokens candidats
+- Filtrage par seuil de similarité configurable
+
+---
+
+## Gestion des erreurs
+
+| Situation | Comportement |
+|-----------|--------------|
+| Aucun n-gramme généré | Retourne une collection vide |
+| Aucun token trouvé | Passe au n-gramme suivant |
+| Score inférieur au seuil | Token ignoré (suggestion/search) |
+| Contexte sans namespace ni clusters | Exception levée par `ContextFilterVO` |
+
+---
 
 ## Compatibilité
 
 | Version | Support |
 |---------|---------|
-| PHP 8.1+ | ✅ Complet |
+| PHP 8.2+ | ✅ Complet |
 | Laravel 10.x+ | ✅ Complet |
-| Laravel Indexer 0.6.1+ | ✅ Requis |
+| Laravel Indexer 0.21.1+ | ✅ Requis |
 
 ## Dépendances
 
@@ -222,6 +313,8 @@ $results = $hermes->search($request);
 - `NGramGeneratorInterface` - Génération des n-grammes
 - `SimilarityCalculatorService` - Calcul de similarité
 - `SimilarityConfig` - Configuration des paramètres
+
+---
 
 ## Exemple complet
 
@@ -236,6 +329,8 @@ use AndyDefer\LaravelHermes\Records\SuggestionRequestRecord;
 use AndyDefer\LaravelHermes\Records\SearchRequestRecord;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
+use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
+use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use AndyDefer\LaravelIndexer\ValueObjects\SearchQueryVO;
 
 $hermes = app(HermesService::class);
@@ -263,9 +358,17 @@ foreach ($suggestions as $result) {
     echo $result->original_text . " (" . round($result->similarity, 2) . ")\n";
 }
 
-// 3. Recherche
+// 3. Recherche avec clusters
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+$clusters->add(new ClusterVO('env:production@AND'));
+
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User'));
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    $clusters,
+    'AND'
+));
 
 $searchRequest = SearchRequestRecord::from([
     'query' => new SearchQueryVO('john=name|developer=description'),
@@ -292,4 +395,5 @@ foreach ($results as $result) {
 - `CompletionRequestRecord` - Record de requête de complétion
 - `SuggestionRequestRecord` - Record de requête de suggestion
 - `SearchRequestRecord` - Record de requête de recherche
+- `ContextFilterVO` - Filtre de contexte (namespace + clusters)
 - `Laravel Hermes - Documentation` - Documentation générale du package

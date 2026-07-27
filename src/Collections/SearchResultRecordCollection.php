@@ -7,6 +7,9 @@ namespace AndyDefer\LaravelHermes\Collections;
 use AndyDefer\DomainStructures\Abstracts\AbstractTypedCollection;
 use AndyDefer\DomainStructures\Collections\Core\TypedCollection;
 use AndyDefer\LaravelHermes\Records\SearchResultRecord;
+use AndyDefer\LaravelIndexer\Contracts\Indexable;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * @method SearchResultRecord|null first()
@@ -35,13 +38,218 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
         return array_map(fn (SearchResultRecord $r) => $r->fingerprint, $this->items);
     }
 
+    public function getNamespaces(): array
+    {
+        $namespaces = [];
+        foreach ($this->items as $record) {
+            $parts = explode('|', $record->fingerprint);
+            if (isset($parts[0]) && ! in_array($parts[0], $namespaces, true)) {
+                $namespaces[] = $parts[0];
+            }
+        }
+
+        return $namespaces;
+    }
+
+    public function getIds(): array
+    {
+        $ids = [];
+        foreach ($this->items as $record) {
+            $parts = explode('|', $record->fingerprint);
+            if (isset($parts[1])) {
+                $ids[] = $parts[1];
+            }
+        }
+
+        return $ids;
+    }
+
     public function filterByMinSimilarity(float $minSimilarity): self
     {
         return $this->filter(fn (SearchResultRecord $r) => $r->similarity >= $minSimilarity);
     }
 
+    public function filterByField(string $field): self
+    {
+        return $this->filter(
+            fn (SearchResultRecord $r) => $r->matches->filterByField($field)->isNotEmpty()
+        );
+    }
+
+    public function filterByNamespace(string $namespace): self
+    {
+        return $this->filter(
+            fn (SearchResultRecord $r) => str_starts_with($r->fingerprint, $namespace.'|')
+        );
+    }
+
+    public function filterByNamespaces(array $namespaces): self
+    {
+        return $this->filter(function (SearchResultRecord $r) use ($namespaces) {
+            foreach ($namespaces as $namespace) {
+                if (str_starts_with($r->fingerprint, $namespace.'|')) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+    }
+
     public function getData(): array
     {
         return array_map(fn (SearchResultRecord $r) => $r->data->toArray(), $this->items);
+    }
+
+    public function getMatches(): array
+    {
+        return array_map(fn (SearchResultRecord $r) => $r->matches->toArray(), $this->items);
+    }
+
+    /**
+     * Récupère les instances des modèles pour tous les résultats en une seule requête par classe.
+     * Les modèles non trouvés sont ignorés silencieusement.
+     * Les instances sont retournées dans l'ordre de la collection.
+     *
+     * @return Collection<int, Model&Indexable>
+     */
+    public function getModelInstances(): Collection
+    {
+        // Grouper les IDs par namespace/classe
+        $groupedIds = [];
+        foreach ($this->items as $record) {
+            $parts = explode('|', $record->fingerprint);
+            if (count($parts) !== 2) {
+                continue;
+            }
+
+            $namespace = $parts[0];
+            $id = $parts[1];
+
+            // Convertir le namespace en FQCN (remplacer . par \)
+            $class = str_replace('.', '\\', $namespace);
+
+            if (! class_exists($class)) {
+                continue;
+            }
+
+            if (! isset($groupedIds[$class])) {
+                $groupedIds[$class] = [];
+            }
+            $groupedIds[$class][] = $id;
+        }
+
+        // Une seule requête par classe de modèle
+        $models = [];
+        foreach ($groupedIds as $class => $ids) {
+            /** @var Model&Indexable $class */
+            $found = $class::whereIn('id', $ids)->get()->keyBy('id');
+
+            foreach ($found as $model) {
+                $models[$model->getKey()] = $model;
+            }
+        }
+
+        // Retourner les modèles dans l'ordre de la collection
+        $result = [];
+        foreach ($this->items as $record) {
+            $parts = explode('|', $record->fingerprint);
+            if (count($parts) !== 2) {
+                continue;
+            }
+
+            $id = $parts[1];
+            if (isset($models[$id])) {
+                $result[] = $models[$id];
+            }
+        }
+
+        return new Collection($result);
+    }
+
+    /**
+     * Récupère les IDs et les classes de modèles groupés.
+     *
+     * @return array<string, array<int|string>>
+     */
+    public function getGroupedIdsByClass(): array
+    {
+        $grouped = [];
+        foreach ($this->items as $record) {
+            $parts = explode('|', $record->fingerprint);
+            if (count($parts) !== 2) {
+                continue;
+            }
+
+            $namespace = $parts[0];
+            $id = $parts[1];
+            $class = str_replace('.', '\\', $namespace);
+
+            if (! class_exists($class)) {
+                continue;
+            }
+
+            if (! isset($grouped[$class])) {
+                $grouped[$class] = [];
+            }
+            $grouped[$class][] = $id;
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Vérifie si un résultat appartient à un namespace.
+     */
+    public function belongsToNamespace(string $namespace): bool
+    {
+        foreach ($this->items as $record) {
+            if (str_starts_with($record->fingerprint, $namespace.'|')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Vérifie si un résultat appartient à l'un des namespaces.
+     */
+    public function belongsToAnyNamespace(array $namespaces): bool
+    {
+        foreach ($this->items as $record) {
+            foreach ($namespaces as $namespace) {
+                if (str_starts_with($record->fingerprint, $namespace.'|')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Groupe les résultats par namespace.
+     *
+     * @return array<string, self>
+     */
+    public function groupByNamespace(): array
+    {
+        $groups = [];
+        foreach ($this->items as $record) {
+            $parts = explode('|', $record->fingerprint);
+            if (count($parts) !== 2) {
+                continue;
+            }
+
+            $namespace = $parts[0];
+
+            if (! isset($groups[$namespace])) {
+                $groups[$namespace] = new self;
+            }
+            $groups[$namespace]->add($record);
+        }
+
+        return $groups;
     }
 }

@@ -1,7 +1,5 @@
 # Laravel Hermes
 
-
-
 ## Table des matières
 
 - [Installation](#installation)
@@ -178,9 +176,14 @@ class UserController
 ```php
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
+use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
+use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
+
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
 
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User'));
+$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
 
 $request = CompletionRequestRecord::from([
     'query' => 'joh=name',
@@ -253,9 +256,20 @@ $results = $this->hermes->suggest($request);
 
 ```php
 use AndyDefer\LaravelHermes\Records\SearchRequestRecord;
+use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
+use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
+use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
+use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
+
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+
+$contexts = new ContextFilterVOCollection();
+$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
 
 $request = SearchRequestRecord::from([
     'query' => 'john=name,email|developer=description',
+    'contexts' => $contexts,
     'limit' => 20,
     'min_similarity' => 0.3,
 ]);
@@ -389,33 +403,52 @@ $results = $this->hermes->suggest($request);
 
 Le cluster est un **filtre contextuel** pour les recherches multi-tenant.
 
+### Format du cluster
+
+```
+key1:value1|key2:value2|key3:value3@AND
+key1:value1|key2:value2|key3:value3@OR
+key1:value1|key2:value2|key3:value3@NOT
+```
+
+| Élément | Description |
+|---------|-------------|
+| `key:value` | Paire clé-valeur (une clé = une valeur) |
+| `|` | Séparateur de paires |
+| `@AND` / `@OR` / `@NOT` | Mode de recherche (obligatoire pour la recherche) |
+
+**Caractères autorisés :**
+- **Clés** : `a-z`, `A-Z`, `0-9`, `_` uniquement
+- **Valeurs** : Tous les caractères (libre)
+
 ### Créer un cluster
 
 ```php
 use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 
-// Simple
+// Stockage (sans mode)
 $cluster = new ClusterVO('tenant:company_abc');
 
-// Multiple
-$cluster = new ClusterVO('tenant:company_abc|env:production|region:europe');
+// Recherche (avec mode)
+$cluster = new ClusterVO('tenant:company_abc@AND');
+$cluster = new ClusterVO('tenant:company_abc|env:production@OR');
+$cluster = new ClusterVO('status:inactive@NOT');
 
-// Valeurs multiples
-$cluster = new ClusterVO('tenant:company_abc,company_xyz|category:electronics,music');
+// Builder fluent
+$cluster = ClusterVO::make('type', 'user')
+    ->with('role', 'doctor')
+    ->withTernary('status', $isActive, 'active', 'inactive');
 ```
 
 ### Lire un cluster
 
 ```php
-$cluster = new ClusterVO('tenant:company_abc,company_xyz|env:production');
+$cluster = new ClusterVO('tenant:company_abc|env:production');
 
-$cluster->get('tenant');     // ['company_abc', 'company_xyz']
-$cluster->get('env');        // ['production']
-$cluster->has('tenant');     // true
-$cluster->has('unknown');    // false
-$cluster->contains('tenant', 'company_abc');  // true
-$cluster->all();
-// ['tenant' => ['company_abc', 'company_xyz'], 'env' => ['production']]
+$cluster->get('tenant');  // 'company_abc'
+$cluster->get('env');     // 'production'
+$cluster->has('tenant');  // true
+$cluster->all();          // ['tenant' => 'company_abc', 'env' => 'production']
 ```
 
 ### Manipuler un cluster
@@ -425,11 +458,9 @@ $cluster = new ClusterVO('tenant:company_abc');
 
 // Ajouter
 $new = $cluster->with('env', 'production');
-$new = $cluster->withMany('category', ['electronics', 'music']);
 
 // Supprimer
-$new = $cluster->without('tenant', 'company_abc');
-$new = $cluster->without('env');
+$new = $cluster->without('tenant');
 
 // Chaînage
 $new = $cluster
@@ -437,12 +468,31 @@ $new = $cluster
     ->with('region', 'europe');
 ```
 
+### Collection de clusters
+
+```php
+use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
+
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+$clusters->add(new ClusterVO('env:production@AND'));
+
+// Opérateurs entre clusters
+$clusters->applyToQuery($query, 'AND'); // Tous doivent correspondre
+$clusters->applyToQuery($query, 'OR');  // Au moins un doit correspondre
+$clusters->applyToQuery($query, 'NOT'); // Aucun ne doit correspondre
+```
+
 ### Utiliser un cluster dans une recherche
 
 ```php
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+
 $request = SearchRequestRecord::from([
     'query' => new SearchQueryVO('john=name'),
-    'cluster' => new ClusterVO('tenant:company_abc'),
+    'clusters' => $clusters,
+    'clustersOperator' => 'AND'
 ]);
 
 $results = $this->hermes->search($request);
@@ -453,32 +503,35 @@ $results = $this->hermes->search($request);
 
 ## Les contextes
 
-Le contexte est un **filtre combiné** (namespace + cluster) pour les recherches.
+Le contexte est un **filtre combiné** (namespace + clusters) pour les recherches.
 
 ### Créer un contexte
 
 ```php
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
+use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
+use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 
 // Uniquement namespace
 $context = new ContextFilterVO('App.Models.User');
 
-// Uniquement cluster (string)
-$context = new ContextFilterVO(null, 'tenant:company_abc');
-
-// Uniquement cluster (ClusterVO)
-$cluster = new ClusterVO('tenant:company_abc|env:production');
-$context = new ContextFilterVO(null, $cluster);
+// Uniquement clusters
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+$context = new ContextFilterVO(null, $clusters, 'AND');
 
 // Les deux (ET)
-$context = new ContextFilterVO('App.Models.User', 'tenant:company_abc');
+$context = new ContextFilterVO('App.Models.User', $clusters, 'AND');
 ```
 
 ### Utiliser un contexte
 
 ```php
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User', 'tenant:company_abc'));
+$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
 
 $request = SearchRequestRecord::from([
     'query' => new SearchQueryVO('john=name'),
@@ -495,10 +548,12 @@ $request = SearchRequestRecord::from([
 ### Logique OR entre les contextes
 
 ```php
-// Recherche dans Users OU dans le tenant company_abc
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+
 $contexts = new ContextFilterVOCollection();
 $contexts->add(new ContextFilterVO('App.Models.User'));
-$contexts->add(new ContextFilterVO(null, 'tenant:company_abc'));
+$contexts->add(new ContextFilterVO(null, $clusters, 'AND'));
 
 $request = SearchRequestRecord::from([
     'query' => new SearchQueryVO('john=name'),
@@ -511,25 +566,28 @@ $request = SearchRequestRecord::from([
 ### Logique AND à l'intérieur d'un contexte
 
 ```php
-// Recherche dans Users ET tenant company_abc
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+$clusters->add(new ClusterVO('env:production@AND'));
+
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User', 'tenant:company_abc'));
+$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
 
-$request = SearchRequestRecord::from([
-    'query' => new SearchQueryVO('john=name'),
-    'contexts' => $contexts,
-]);
-
-// Résultat : Users ET tenant company_abc
+// Résultat : Users ET tenant company_abc ET env production
 ```
 
 ### Combinaison complexe de contextes
 
 ```php
-// (User ET company_abc) OU (Product ET company_xyz)
+$clustersUser = new ClusterVOCollection();
+$clustersUser->add(new ClusterVO('tenant:company_abc@AND'));
+
+$clustersProduct = new ClusterVOCollection();
+$clustersProduct->add(new ClusterVO('tenant:company_xyz@AND'));
+
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User', 'tenant:company_abc'));
-$contexts->add(new ContextFilterVO('App.Models.Product', 'tenant:company_xyz'));
+$contexts->add(new ContextFilterVO('App.Models.User', $clustersUser, 'AND'));
+$contexts->add(new ContextFilterVO('App.Models.Product', $clustersProduct, 'AND'));
 
 $request = SearchRequestRecord::from([
     'query' => new SearchQueryVO('john=name'),
@@ -545,8 +603,8 @@ $request = SearchRequestRecord::from([
 // (User ET company_abc) OU (Product ET company_xyz)
 // ET "john" dans name OU "developer" dans description
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User', 'tenant:company_abc'));
-$contexts->add(new ContextFilterVO('App.Models.Product', 'tenant:company_xyz'));
+$contexts->add(new ContextFilterVO('App.Models.User', $clustersUser, 'AND'));
+$contexts->add(new ContextFilterVO('App.Models.Product', $clustersProduct, 'AND'));
 
 $request = SearchRequestRecord::from([
     'query' => new SearchQueryVO('john=name,email|developer=description'),
@@ -569,6 +627,8 @@ $results = $this->hermes->search($request);
 use AndyDefer\LaravelHermes\Repositories\HermesRepository;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
+use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
+use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 
 $repository = app(HermesRepository::class);
 
@@ -576,9 +636,12 @@ $repository = app(HermesRepository::class);
 $ngrams = ['joh', 'ohn', 'john'];
 $tokens = $repository->findTokensByNgrams($ngrams, limit: 10);
 
-// Avec filtres
+// Avec filtres de contexte
+$clusters = new ClusterVOCollection();
+$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User'));
+$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
 
 $tokens = $repository->findTokensByNgrams(
     $ngrams,
@@ -655,11 +718,16 @@ $contexts->add(new ContextFilterVO('App.Models.User'));
 
 // Extraction
 $namespaces = $contexts->getNamespaces();
-$clusters = $contexts->getClusters();
+$clusterCollections = $contexts->getClusterCollections();
+$allClusters = $contexts->getAllClusters();
 
 // Filtrage
 $byNamespace = $contexts->filterByNamespace('App.Models.User');
-$byCluster = $contexts->filterByCluster('tenant:company_abc');
+$withClusters = $contexts->filterWithClusters();
+$withNamespace = $contexts->filterWithNamespace();
+
+// Groupement
+$groupedByOperator = $contexts->getClustersGroupedByOperator();
 ```
 
 ---
@@ -679,6 +747,8 @@ use AndyDefer\LaravelHermes\Records\SearchRequestRecord;
 use AndyDefer\LaravelHermes\Records\SuggestionRequestRecord;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
+use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
+use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use AndyDefer\LaravelIndexer\ValueObjects\SearchQueryVO;
 use Illuminate\Http\Request;
 
@@ -779,25 +849,21 @@ class SearchController extends Controller
         if ($request->user()) {
             // Filtre par tenant (cluster)
             if ($request->user()->tenant_id) {
-                $contexts->add(new ContextFilterVO(
-                    null,
-                    'tenant:' . $request->user()->tenant_id
-                ));
+                $clusters = new ClusterVOCollection();
+                $clusters->add(new ClusterVO('tenant:' . $request->user()->tenant_id . '@AND'));
+                $contexts->add(new ContextFilterVO(null, $clusters, 'AND'));
             }
 
             // Filtre par namespace
             if ($request->get('namespace')) {
-                $contexts->add(new ContextFilterVO(
-                    $request->get('namespace')
-                ));
+                $contexts->add(new ContextFilterVO($request->get('namespace')));
             }
 
             // Les deux
             if ($request->user()->tenant_id && $request->get('namespace')) {
-                $contexts->add(new ContextFilterVO(
-                    $request->get('namespace'),
-                    'tenant:' . $request->user()->tenant_id
-                ));
+                $clusters = new ClusterVOCollection();
+                $clusters->add(new ClusterVO('tenant:' . $request->user()->tenant_id . '@AND'));
+                $contexts->add(new ContextFilterVO($request->get('namespace'), $clusters, 'AND'));
             }
         }
 
