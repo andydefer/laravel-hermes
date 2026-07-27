@@ -8,6 +8,7 @@ use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
 use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class TestDoctor extends Model implements Indexable
 {
@@ -77,6 +78,11 @@ class TestDoctor extends Model implements Indexable
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
         ]);
+    }
+
+    public function addresses(): MorphMany
+    {
+        return $this->morphMany(TestAddress::class, 'addressable');
     }
 
     public function getMorphClass()

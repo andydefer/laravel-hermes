@@ -8,7 +8,7 @@ use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
 use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class TestAddress extends Model implements Indexable
 {
@@ -16,7 +16,8 @@ class TestAddress extends Model implements Indexable
 
     protected $fillable = [
         'id',
-        'user_id',
+        'addressable_id',
+        'addressable_type',
         'street',
         'city',
         'country',
@@ -28,9 +29,9 @@ class TestAddress extends Model implements Indexable
         'is_active' => 'bool',
     ];
 
-    public function user(): BelongsTo
+    public function addressable(): MorphTo
     {
-        return $this->belongsTo(TestUser::class, 'user_id');
+        return $this->morphTo();
     }
 
     public function shouldBeIndexed(): bool
@@ -40,8 +41,8 @@ class TestAddress extends Model implements Indexable
 
     public function getIndexableData(): StrictAssociative
     {
-        if (! $this->relationLoaded('user')) {
-            $this->load('user');
+        if (! $this->relationLoaded('addressable')) {
+            $this->load('addressable');
         }
 
         return StrictAssociative::from([
@@ -49,8 +50,8 @@ class TestAddress extends Model implements Indexable
             'address_city' => $this->city,
             'address_country' => $this->country,
             'address_postal_code' => $this->postal_code,
-            'user_name' => $this->user?->name ?? '',
-            'user_email' => $this->user?->email ?? '',
+            'addressable_name' => $this->addressable?->name ?? $this->addressable?->first_name ?? '',
+            'addressable_email' => $this->addressable?->email ?? '',
             'full_address' => $this->getFullAddress(),
         ]);
     }
@@ -67,7 +68,8 @@ class TestAddress extends Model implements Indexable
     {
         return StrictAssociative::from([
             'id' => $this->id,
-            'user_id' => $this->user_id,
+            'addressable_id' => $this->addressable_id,
+            'addressable_type' => $this->addressable_type,
             'street' => $this->street,
             'city' => $this->city,
             'country' => $this->country,

@@ -8,7 +8,7 @@ use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
 use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class TestUser extends Model implements Indexable
 {
@@ -59,8 +59,8 @@ class TestUser extends Model implements Indexable
         ]);
     }
 
-    public function addresses(): HasMany
+    public function addresses(): MorphMany
     {
-        return $this->hasMany(TestAddress::class, 'user_id');
+        return $this->morphMany(TestAddress::class, 'addressable');
     }
 }

@@ -126,7 +126,7 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
      */
     public function getModelInstances(array $with = []): Collection
     {
-        // Grouper les IDs par namespace/classe
+        // Grouper les IDs par classe
         $groupedIds = [];
         foreach ($this->items as $record) {
             $parts = explode('|', $record->fingerprint);
@@ -134,51 +134,49 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
                 continue;
             }
 
-            $namespace = $parts[0];
-            $id = $parts[1];
-
-            // Convertir le namespace en FQCN (remplacer . par \)
-            $class = str_replace('.', '\\', $namespace);
-
+            $class = str_replace('.', '\\', $parts[0]);
             if (! class_exists($class)) {
                 continue;
             }
 
-            if (! isset($groupedIds[$class])) {
-                $groupedIds[$class] = [];
-            }
-            $groupedIds[$class][] = $id;
+            $groupedIds[$class][] = $parts[1];
         }
 
-        // Une seule requête par classe de modèle
+        // Charger les modèles (une requête par classe)
         $models = [];
         foreach ($groupedIds as $class => $ids) {
-            /** @var Model&Indexable $class */
             $query = $class::whereIn('id', $ids);
 
-            // Charger les relations si spécifiées
+            // Vérifier que toutes les relations demandées existent sur le modèle
             if (! empty($with)) {
-                $existingRelations = [];
+                $invalidRelations = [];
                 foreach ($with as $relation) {
-                    if (method_exists($class, $relation)) {
-                        $existingRelations[] = $relation;
+                    $mainRelation = explode('.', $relation)[0];
+                    if (! method_exists($class, $mainRelation)) {
+                        $invalidRelations[] = $relation;
                     }
                 }
-                if (! empty($existingRelations)) {
-                    $query->with($existingRelations);
+
+                if (! empty($invalidRelations)) {
+                    throw new \InvalidArgumentException(
+                        sprintf(
+                            'Relations [%s] do not exist on model [%s]',
+                            implode(', ', $invalidRelations),
+                            $class
+                        )
+                    );
                 }
+
+                $query->with($with);
             }
 
-            $found = $query->get()->keyBy('id');
-
-            foreach ($found as $model) {
-                // Utiliser une clé composite pour éviter les collisions d'ID entre différentes classes
+            foreach ($query->get() as $model) {
                 $key = get_class($model).'|'.$model->getKey();
                 $models[$key] = $model;
             }
         }
 
-        // Retourner les modèles dans l'ordre de la collection
+        // Retourner dans l'ordre de la collection
         $result = [];
         foreach ($this->items as $record) {
             $parts = explode('|', $record->fingerprint);
@@ -186,15 +184,12 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
                 continue;
             }
 
-            $namespace = $parts[0];
-            $id = $parts[1];
-            $class = str_replace('.', '\\', $namespace);
-
+            $class = str_replace('.', '\\', $parts[0]);
             if (! class_exists($class)) {
                 continue;
             }
 
-            $key = $class.'|'.$id;
+            $key = $class.'|'.$parts[1];
             if (isset($models[$key])) {
                 $result[] = $models[$key];
             }

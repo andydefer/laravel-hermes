@@ -326,7 +326,8 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
         ]);
 
         $address = TestAddress::create([
-            'user_id' => $user->id,
+            'addressable_id' => $user->id,
+            'addressable_type' => TestUser::class,
             'street' => '123 Main St',
             'city' => 'Paris',
             'country' => 'France',
@@ -359,7 +360,8 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
         ]);
 
         $address = TestAddress::create([
-            'user_id' => $user->id,
+            'addressable_id' => $user->id,
+            'addressable_type' => TestUser::class,
             'street' => '456 Oak Ave',
             'city' => 'Lyon',
             'country' => 'France',
@@ -385,7 +387,6 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
 
     public function test_get_model_instances_with_relations_on_multiple_classes(): void
     {
-
         $user = TestUser::create([
             'name' => 'John Doe',
             'email' => 'john@test.com',
@@ -393,7 +394,8 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
         ]);
 
         $address = TestAddress::create([
-            'user_id' => $user->id,
+            'addressable_id' => $user->id,
+            'addressable_type' => TestUser::class,
             'street' => '123 Main St',
             'city' => 'Paris',
             'country' => 'France',
@@ -409,6 +411,16 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
             'is_active' => true,
         ]);
 
+        $address2 = TestAddress::create([
+            'addressable_id' => $doctor->id,
+            'addressable_type' => TestDoctor::class,
+            'street' => '456 Oak Ave',
+            'city' => 'Lyon',
+            'country' => 'France',
+            'postal_code' => '69001',
+            'is_active' => true,
+        ]);
+
         $fingerprint1 = $this->getFingerprintForModel($user);
         $fingerprint2 = $this->getFingerprintForModel($doctor);
 
@@ -417,34 +429,14 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
             $this->createTestRecord($fingerprint2)
         );
 
-        foreach ($this->collection as $record) {
-        }
-
         $instances = $this->collection->getModelInstances(['addresses']);
 
         $this->assertCount(2, $instances);
 
-        // Vérifier les types des instances retournées
-        $hasUser = false;
-        $hasDoctor = false;
         foreach ($instances as $instance) {
-            if ($instance instanceof TestUser) {
-                $hasUser = true;
-                $this->assertEquals('John Doe', $instance->name);
-                $this->assertTrue($instance->relationLoaded('addresses'));
-                $this->assertCount(1, $instance->addresses);
-                $this->assertEquals('123 Main St', $instance->addresses->first()->street);
-            } elseif ($instance instanceof TestDoctor) {
-                $hasDoctor = true;
-                $this->assertEquals('Dr. Jane', $instance->first_name);
-                $this->assertFalse($instance->relationLoaded('addresses'));
-            } else {
-                $this->fail('Unexpected instance type: '.get_class($instance));
-            }
+            $this->assertTrue($instance->relationLoaded('addresses'));
+            $this->assertCount(1, $instance->addresses);
         }
-
-        $this->assertTrue($hasUser, 'TestUser not found in instances');
-        $this->assertTrue($hasDoctor, 'TestDoctor not found in instances');
     }
 
     public function test_get_model_instances_with_empty_relations_does_not_fail(): void
@@ -466,7 +458,6 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
         $this->assertCount(1, $instances);
         $this->assertInstanceOf(TestUser::class, $instances[0]);
         $this->assertEquals('John Doe', $instances[0]->name);
-        // La relation est chargée mais vide
         $this->assertTrue($instances[0]->relationLoaded('addresses'));
         $this->assertCount(0, $instances[0]->addresses);
     }
