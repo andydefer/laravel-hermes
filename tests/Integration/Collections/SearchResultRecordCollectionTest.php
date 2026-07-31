@@ -62,8 +62,8 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
 
     public function test_can_add_items(): void
     {
-        $record1 = $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1');
-        $record2 = $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2');
+        $record1 = $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1');
+        $record2 = $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2');
 
         $this->collection->add($record1, $record2);
 
@@ -74,8 +74,8 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
 
     public function test_can_get_document_ids(): void
     {
-        $record1 = $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1');
-        $record2 = $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2');
+        $record1 = $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1');
+        $record2 = $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2');
 
         $this->collection->add($record1, $record2);
 
@@ -89,38 +89,38 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
     public function test_can_get_fingerprints(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2')
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2')
         );
 
         $fingerprints = $this->collection->getFingerprints();
 
         $this->assertCount(2, $fingerprints);
-        $this->assertContains('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1', $fingerprints);
-        $this->assertContains('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2', $fingerprints);
+        $this->assertContains('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1', $fingerprints);
+        $this->assertContains('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2', $fingerprints);
     }
 
     public function test_can_get_namespaces(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor|3')
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor|3')
         );
 
         $namespaces = $this->collection->getNamespaces();
 
         $this->assertCount(2, $namespaces);
-        $this->assertContains('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser', $namespaces);
-        $this->assertContains('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor', $namespaces);
+        $this->assertContains('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser', $namespaces);
+        $this->assertContains('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor', $namespaces);
     }
 
     public function test_can_get_ids_from_fingerprints(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor|3')
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor|3')
         );
 
         $ids = $this->collection->getEntityIds();
@@ -134,9 +134,9 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
     public function test_can_filter_by_min_similarity(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1', 0.95),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2', 0.75),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|3', 0.50)
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1', 0.95),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2', 0.75),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|3', 0.50)
         );
 
         $filtered = $this->collection->filterByMinSimilarity(0.7);
@@ -149,10 +149,10 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
     public function test_can_filter_by_field(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1', 0.8, [
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1', 0.8, [
                 ['field' => 'name', 'original_text' => 'John', 'similarity' => 1.0],
             ]),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2', 0.8, [
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2', 0.8, [
                 ['field' => 'email', 'original_text' => 'john@test.com', 'similarity' => 1.0],
             ])
         );
@@ -160,46 +160,46 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
         $filtered = $this->collection->filterByField('name');
 
         $this->assertCount(1, $filtered);
-        $this->assertEquals('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1', $filtered->first()->fingerprint);
+        $this->assertEquals('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1', $filtered->first()->fingerprint);
     }
 
     public function test_can_filter_by_namespace(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor|3')
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor|3')
         );
 
-        $filtered = $this->collection->filterByNamespace('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser');
+        $filtered = $this->collection->filterByNamespace('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser');
 
         $this->assertCount(2, $filtered);
-        $this->assertEquals('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1', $filtered->first()->fingerprint);
-        $this->assertEquals('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2', $filtered->last()->fingerprint);
+        $this->assertEquals('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1', $filtered->first()->fingerprint);
+        $this->assertEquals('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2', $filtered->last()->fingerprint);
     }
 
     public function test_can_filter_by_multiple_namespaces(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor|2'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestPharmacy|3'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestProduct|4')
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor|2'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestPharmacy|3'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestProduct|4')
         );
 
         $filtered = $this->collection->filterByNamespaces([
-            'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser',
-            'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor',
+            'AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser',
+            'AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor',
         ]);
 
         $this->assertCount(2, $filtered);
-        $this->assertEquals('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1', $filtered->first()->fingerprint);
-        $this->assertEquals('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor|2', $filtered->last()->fingerprint);
+        $this->assertEquals('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1', $filtered->first()->fingerprint);
+        $this->assertEquals('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor|2', $filtered->last()->fingerprint);
     }
 
     public function test_can_get_data_as_array(): void
     {
-        $record = $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1');
+        $record = $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1');
         $this->collection->add($record);
 
         $data = $this->collection->getData();
@@ -210,7 +210,7 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
 
     public function test_can_get_matches_as_array(): void
     {
-        $record = $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1', 0.8, [
+        $record = $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1', 0.8, [
             ['field' => 'name', 'original_text' => 'John', 'similarity' => 1.0],
             ['field' => 'email', 'original_text' => 'john@test.com', 'similarity' => 0.9],
         ]);
@@ -235,60 +235,60 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
     public function test_can_check_if_belongs_to_namespace(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor|2')
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor|2')
         );
 
-        $this->assertTrue($this->collection->belongsToNamespace('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser'));
-        $this->assertTrue($this->collection->belongsToNamespace('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor'));
-        $this->assertFalse($this->collection->belongsToNamespace('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestPharmacy'));
+        $this->assertTrue($this->collection->belongsToNamespace('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser'));
+        $this->assertTrue($this->collection->belongsToNamespace('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor'));
+        $this->assertFalse($this->collection->belongsToNamespace('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestPharmacy'));
     }
 
     public function test_can_check_if_belongs_to_any_namespace(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor|2')
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor|2')
         );
 
         $this->assertTrue($this->collection->belongsToAnyNamespace([
-            'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser',
-            'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestPharmacy',
+            'AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser',
+            'AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestPharmacy',
         ]));
         $this->assertFalse($this->collection->belongsToAnyNamespace([
-            'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestPharmacy',
-            'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestProduct',
+            'AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestPharmacy',
+            'AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestProduct',
         ]));
     }
 
     public function test_can_group_by_namespace(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor|3'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor|4')
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor|3'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor|4')
         );
 
         $groups = $this->collection->groupByNamespace();
 
         $this->assertCount(2, $groups);
-        $this->assertArrayHasKey('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser', $groups);
-        $this->assertArrayHasKey('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor', $groups);
-        $this->assertCount(2, $groups['AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser']);
-        $this->assertCount(2, $groups['AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor']);
-        $this->assertInstanceOf(SearchResultRecordCollection::class, $groups['AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser']);
+        $this->assertArrayHasKey('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser', $groups);
+        $this->assertArrayHasKey('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor', $groups);
+        $this->assertCount(2, $groups['AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser']);
+        $this->assertCount(2, $groups['AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor']);
+        $this->assertInstanceOf(SearchResultRecordCollection::class, $groups['AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser']);
     }
 
     public function test_can_group_by_namespace_and_get_ids(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1'),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2')
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1'),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2')
         );
 
         $groups = $this->collection->groupByNamespace();
-        $userGroup = $groups['AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser'];
+        $userGroup = $groups['AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser'];
 
         $ids = $userGroup->getEntityIds();
         $this->assertCount(2, $ids);
@@ -299,17 +299,17 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
     public function test_can_chain_filters(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1', 0.95),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2', 0.75),
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor|3', 0.85)
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1', 0.95),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|2', 0.75),
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestDoctor|3', 0.85)
         );
 
         $filtered = $this->collection
-            ->filterByNamespace('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser')
+            ->filterByNamespace('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser')
             ->filterByMinSimilarity(0.8);
 
         $this->assertCount(1, $filtered);
-        $this->assertEquals('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1', $filtered->first()->fingerprint);
+        $this->assertEquals('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|1', $filtered->first()->fingerprint);
         $this->assertEquals(0.95, $filtered->first()->similarity);
     }
 
@@ -465,7 +465,7 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
     public function test_get_model_instances_with_relations_returns_empty_when_no_models_found(): void
     {
         $this->collection->add(
-            $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|999')
+            $this->createTestRecord('AndyDefer\\LaravelHermes\\Tests\\Fixtures\\Models\\TestUser|999')
         );
 
         $instances = $this->collection->getModelInstances(['addresses']);

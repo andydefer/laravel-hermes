@@ -17,17 +17,17 @@ use InvalidArgumentException;
  *
  * @example
  * // Simple namespace filter
- * $context = new ContextFilterVO('App.Models.User');
+ * $context = new ContextFilterVO('App\\Models\\User');
  *
  * // Single cluster query
  * $context = new ContextFilterVO(
- *     'App.Models.User',
+ *     'App\\Models\\User',
  *     new ClusterQueries(['cluster' => 'tenant=company_abc'])
  * );
  *
  * // Multiple cluster queries
  * $context = new ContextFilterVO(
- *     'App.Models.User',
+ *     'App\\Models\\User',
  *     new ClusterQueries([
  *         'cluster' => 'tenant=company_abc',
  *         'metadata' => 'env=production'

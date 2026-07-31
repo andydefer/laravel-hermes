@@ -20,7 +20,7 @@ use AndyDefer\LaravelHermes\Records\SearchResultRecord;
  *     record: $searchResultRecord,
  *     data: $doctorData
  * );
- * $vo->getValue(); // ['data' => [...], 'similarity' => 0.95, 'matches' => [...], 'fingerprint' => 'App.Models.User|1']
+ * $vo->getValue(); // ['data' => [...], 'similarity' => 0.95, 'matches' => [...], 'fingerprint' => 'App\\Models\\User|1']
  */
 final class SearchResultVO extends AbstractValueObject
 {
@@ -77,7 +77,7 @@ final class SearchResultVO extends AbstractValueObject
     /**
      * Returns the fingerprint of the search result.
      *
-     * @return string The fingerprint (e.g., 'App.Models.User|1')
+     * @return string The fingerprint (e.g., 'App\\Models\\User|1')
      */
     public function getFingerprint(): string
     {

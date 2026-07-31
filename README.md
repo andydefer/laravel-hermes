@@ -1,56 +1,93 @@
-# Laravel Hermes
+# Laravel Hermes - Documentation Complète
 
 ## Table des matières
 
-- [Installation](#installation)
-- [Concepts fondamentaux](#concepts-fondamentaux)
-- [Completion](#completion)
-- [Suggestion](#suggestion)
-- [Search](#search)
-- [Requêtes multiples (AND)](#requêtes-multiples-and)
-- [Les clusters](#les-clusters)
-- [Les contextes](#les-contextes)
-- [Contextes multiples](#contextes-multiples)
-- [Repositories](#repositories)
-- [Collections](#collections)
-- [Exemple complet : API de recherche](#exemple-complet--api-de-recherche)
+1. [Installation](#1-installation)
+2. [Configuration](#2-configuration)
+3. [Préparer votre modèle](#3-préparer-votre-modèle)
+4. [Les Clusters contextuels](#4-les-clusters-contextuels)
+5. [Completion](#5-completion)
+6. [Suggestion](#6-suggestion)
+7. [Search](#7-search)
+8. [Syntaxe de recherche](#8-syntaxe-de-recherche)
+9. [Les Contextes](#9-les-contextes)
+10. [Combinaisons avancées](#10-combinaisons-avancées)
+11. [Repositories](#11-repositories)
+12. [Collections](#12-collections)
+13. [Exemple complet : API de recherche](#13-exemple-complet--api-de-recherche)
+14. [Cas d'usage concrets](#14-cas-dusage-concrets)
+15. [Débogage et résolution des problèmes](#15-débogage-et-résolution-des-problèmes)
+16. [Performance et bonnes pratiques](#16-performance-et-bonnes-pratiques)
 
 ---
 
-## Installation
+## 1. Installation
+
+### 1.1 Prérequis
+
+- PHP 8.1 ou supérieur
+- Laravel 10.x, 11.x, 12.x, 13.x, 14.x ou 15.x
+- Laravel Indexer installé et configuré
+
+### 1.2 Installation via Composer
 
 ```bash
 composer require andydefer/laravel-hermes
 ```
 
-### Migrations
+### 1.3 Migrations
 
 ```bash
 php artisan vendor:publish --tag=hermes-migrations
 php artisan migrate
 ```
 
-### Configuration
+### 1.4 Configuration
 
 ```bash
 php artisan vendor:publish --tag=hermes-config
 ```
 
+---
+
+## 2. Configuration
+
+Le fichier de configuration `config/hermes.php` :
+
 ```php
-// config/hermes.php
+<?php
+
+declare(strict_types=1);
+
 return [
+    /*
+    |--------------------------------------------------------------------------
+    | Configuration de la similarité
+    |--------------------------------------------------------------------------
+    */
     'similarity' => [
+        // Taille des n-grams
         'gram_min_size' => 2,
         'gram_max_size' => 4,
+
+        // Dimension du vecteur pour la similarité
         'vector_dimension' => 128,
+
+        // Poids des composantes
         'textual_weight' => 0.6,
         'phonetic_weight' => 0.4,
+
+        // Bonus pour les correspondances
         'letter_bonus' => 0.05,
         'bigram_bonus' => 0.03,
+
+        // Limites de traitement
         'min_word_length' => 2,
         'max_words' => 50,
         'max_pairs' => 2500,
         'timeout_seconds' => 0.5,
+
+        // Configuration de Levenshtein
         'levenshtein' => [
             'metaphone_threshold' => 3,
             'metaphone_bonus' => 0.175,
@@ -63,46 +100,43 @@ return [
 ];
 ```
 
+### 2.1 Variables d'environnement
+
+```env
+HERMES_GRAM_MIN_SIZE=2
+HERMES_GRAM_MAX_SIZE=4
+HERMES_SIMILARITY_TIMEOUT=0.5
+```
+
 ---
 
-## Concepts fondamentaux
+## 3. Préparer votre modèle
 
-Laravel Hermes est un package de **recherche intelligente** qui s'appuie sur **Laravel Indexer** pour offrir trois services :
-
-| Service | Description |
-|---------|-------------|
-| **COMPLETION** | Complète un bout de mot avec des mots existants |
-| **SUGGESTION** | Corrige les fautes de frappe |
-| **SEARCH** | Recherche textuelle avec résultats détaillés |
-
-### Architecture
-
-```
-Laravel Hermes
-    ├── HermesService (orchestrateur)
-    │   ├── complete()
-    │   ├── suggest()
-    │   └── search()
-    ├── HermesRepository (accès aux tokens)
-    ├── SimilarityCalculatorService (calcul de similarité)
-    └── Records & Collections (DTOs typés)
-```
-
-### Prérequis
-
-Ce package nécessite **Laravel Indexer** pour l'indexation des données.
+Votre modèle doit implémenter l'interface `Indexable` de Laravel Indexer.
 
 ```php
-// Votre modèle doit implémenter Indexable
+<?php
+
+namespace App\Models;
+
+use AndyDefer\DomainStructures\Utils\StrictAssociative;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
+use Illuminate\Database\Eloquent\Model;
 
 class User extends Model implements Indexable
 {
+    /**
+     * Détermine si le modèle doit être indexé.
+     */
     public function shouldBeIndexed(): bool
     {
-        return $this->is_active;
+        return $this->is_active && !$this->trashed();
     }
 
+    /**
+     * Retourne les données à indexer.
+     */
     public function getIndexableData(): StrictAssociative
     {
         return StrictAssociative::from([
@@ -110,85 +144,181 @@ class User extends Model implements Indexable
             'email' => $this->email,
             'bio' => $this->bio,
             'skills' => $this->skills,
+            'city' => $this->city,
+            'country' => $this->country,
         ]);
     }
 
-    public function getKey(): int|string
-    {
-        return $this->id;
-    }
-
-    public function getMorphClass(): string
+    /**
+     * Retourne la classe morph.
+     */
+    public function getMorphClass()
     {
         return self::class;
+    }
+
+    /**
+     * Retourne le cluster contextuel du modèle.
+     */
+    public function getIndexableCluster(): ClusterVO
+    {
+        return new ClusterVO([
+            'type' => 'user',
+            'tenant' => $this->tenant_id,
+            'status' => $this->is_active ? 'active' : 'inactive',
+            'role' => $this->role,
+            'country' => $this->country,
+            'city' => $this->city,
+        ]);
     }
 }
 ```
 
 ---
 
-## Completion
+## 4. Les Clusters contextuels
 
-**Objectif :** L'utilisateur tape un bout de mot, on propose des mots complets triés par similarité.
+### 4.1 Qu'est-ce qu'un cluster ?
 
-### Exemple
+Un cluster est un **filtre contextuel** qui permet de restreindre les recherches à un contexte spécifique (tenant, rôle, statut, etc.).
 
-```
-Base contient : "john", "johanna", "johnson", "johny", "joshua"
-User tape : "joh"
-→ Résultat trié par similarité :
-   1. "joh" → "john" (similarité 1.0)
-   2. "joh" → "johanna" (similarité 0.83)
-   3. "joh" → "johnson" (similarité 0.80)
-```
-
-### Utilisation
+### 4.2 Création d'un cluster
 
 ```php
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+
+// Création simple
+$cluster = new ClusterVO([
+    'status' => 'active',
+    'role' => 'admin',
+    'tenant' => 'company_abc',
+]);
+
+// Création avec données imbriquées
+$cluster = new ClusterVO([
+    'user' => [
+        'status' => 'active',
+        'role' => 'admin',
+    ],
+    'addresses' => [
+        ['city' => 'Kinshasa', 'country' => 'RDC'],
+    ],
+]);
+```
+
+### 4.3 Accès aux données
+
+```php
+$cluster = new ClusterVO([
+    'status' => 'active',
+    'role' => 'admin',
+    'profile' => [
+        'name' => 'John Doe',
+    ],
+]);
+
+// Accès simple
+$status = $cluster->get('status'); // 'active'
+
+// Accès par notation pointée
+$name = $cluster->get('profile.name'); // 'John Doe'
+
+// Vérification
+if ($cluster->has('profile.name')) {
+    echo $cluster->get('profile.name');
+}
+```
+
+### 4.4 Utilisation dans le modèle
+
+```php
+public function getIndexableCluster(): ClusterVO
+{
+    return new ClusterVO([
+        'type' => 'user',
+        'status' => $this->is_active ? 'active' : 'inactive',
+        'role' => $this->role,
+        'tenant' => $this->tenant_id,
+        'country' => $this->country,
+        'city' => $this->city,
+        'verified' => $this->email_verified_at !== null ? 'true' : 'false',
+    ]);
+}
+```
+
+---
+
+## 5. Completion
+
+**Objectif :** L'utilisateur tape un bout de mot → on propose des mots complets triés par similarité.
+
+### 5.1 Utilisation basique
+
+```php
+<?php
+
+namespace App\Services;
+
 use AndyDefer\LaravelHermes\Contracts\Services\HermesInterface;
 use AndyDefer\LaravelHermes\Records\CompletionRequestRecord;
 use AndyDefer\LaravelIndexer\ValueObjects\SearchQueryVO;
 
-class UserController
+class AutocompleteService
 {
     public function __construct(
-        private HermesInterface $hermes
+        private readonly HermesInterface $hermes
     ) {}
 
-    public function autocomplete(Request $request)
+    public function suggest(string $prefix): array
     {
         $request = CompletionRequestRecord::from([
-            'query' => new SearchQueryVO($request->get('q') . '=name,email'),
+            'query' => new SearchQueryVO($prefix . '=name,email,bio'),
             'limit' => 10,
         ]);
 
         $results = $this->hermes->complete($request);
 
-        return response()->json([
-            'suggestions' => $results->getOriginalTexts()
-        ]);
+        return $results->getOriginalTexts();
     }
 }
+
+// Utilisation
+$service = new AutocompleteService($hermes);
+$suggestions = $service->suggest('joh');
+// ['John Doe', 'Johanna', 'Johnson', ...]
 ```
 
-### Avec filtres de contexte
+### 5.2 Completion avec contexte
 
 ```php
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
-use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
 
-$clusters = new ClusterVOCollection();
-$clusters->add(new ClusterVO('tenant:company_abc@AND'));
-
+// Filtrer les utilisateurs actifs du tenant company_abc
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    new ClusterQueries(['cluster' => 'status=active & tenant=company_abc'])
+));
 
 $request = CompletionRequestRecord::from([
-    'query' => 'joh=name',
+    'query' => new SearchQueryVO('joh=name,email'),
     'limit' => 10,
     'contexts' => $contexts,
+]);
+
+$results = $this->hermes->complete($request);
+// Résultat : uniquement les utilisateurs actifs de company_abc
+```
+
+### 5.3 Completion multi-termes
+
+```php
+// Compléter "john" dans name ET "doe" dans email
+$request = CompletionRequestRecord::from([
+    'query' => new SearchQueryVO('john=name|doe=email'),
+    'limit' => 10,
 ]);
 
 $results = $this->hermes->complete($request);
@@ -196,28 +326,17 @@ $results = $this->hermes->complete($request);
 
 ---
 
-## Suggestion
+## 6. Suggestion
 
-**Objectif :** L'utilisateur a fait une faute de frappe, on propose les mots les plus proches.
+**Objectif :** L'utilisateur a fait une faute de frappe → on propose les mots les plus proches.
 
-### Exemple
-
-```
-Base contient : "developer", "development", "deploy", "devops"
-User tape : "devloper" (faute)
-→ Résultat trié par similarité :
-   1. "devloper" → "developer" (similarité 0.92)
-   2. "devloper" → "development" (similarité 0.78)
-   3. "devloper" → "deploy" (similarité 0.65)
-```
-
-### Utilisation
+### 6.1 Utilisation basique
 
 ```php
 use AndyDefer\LaravelHermes\Records\SuggestionRequestRecord;
 
 $request = SuggestionRequestRecord::from([
-    'query' => 'devloper=skills,bio',
+    'query' => new SearchQueryVO('devloper=skills,bio'),
     'limit' => 5,
     'min_similarity' => 0.3,
 ]);
@@ -232,12 +351,12 @@ foreach ($results as $result) {
 // deploy (0.65)
 ```
 
-### Avec seuil de similarité
+### 6.2 Avec seuil de similarité
 
 ```php
 // Seulement les suggestions très proches (> 70%)
 $request = SuggestionRequestRecord::from([
-    'query' => 'devloper=skills',
+    'query' => new SearchQueryVO('devloper=skills'),
     'min_similarity' => 0.7,
     'limit' => 5,
 ]);
@@ -246,30 +365,39 @@ $results = $this->hermes->suggest($request);
 // Résultat : seulement "developer" (0.92)
 ```
 
+### 6.3 Suggestion avec contexte
+
+```php
+$contexts = new ContextFilterVOCollection();
+$contexts->add(new ContextFilterVO(
+    'App.Models.Doctor',
+    new ClusterQueries(['cluster' => 'status=active & specialty=cardiology'])
+));
+
+$request = SuggestionRequestRecord::from([
+    'query' => new SearchQueryVO('card=specialty'),
+    'limit' => 5,
+    'min_similarity' => 0.3,
+    'contexts' => $contexts,
+]);
+
+$results = $this->hermes->suggest($request);
+// Résultat : suggestions pour les cardiologues actifs
+```
+
 ---
 
-## Search
+## 7. Search
 
-**Objectif :** L'utilisateur cherche, on retourne les documents complets avec le détail des matchs.
+**Objectif :** L'utilisateur cherche → on retourne les documents complets avec le détail des matchs.
 
-### Utilisation
+### 7.1 Utilisation basique
 
 ```php
 use AndyDefer\LaravelHermes\Records\SearchRequestRecord;
-use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
-use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
-use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
-
-$clusters = new ClusterVOCollection();
-$clusters->add(new ClusterVO('tenant:company_abc@AND'));
-
-$contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
 
 $request = SearchRequestRecord::from([
-    'query' => 'john=name,email|developer=description',
-    'contexts' => $contexts,
+    'query' => new SearchQueryVO('john=name,email|developer=description'),
     'limit' => 20,
     'min_similarity' => 0.3,
 ]);
@@ -287,324 +415,187 @@ foreach ($results as $result) {
 }
 ```
 
-### Structure du résultat
+### 7.2 Search avec contexte
 
 ```php
-// SearchResultRecord
-[
-    'document_id' => 'uuid',
-    'fingerprint' => 'App.Models.User|123',
-    'data' => StrictAssociative::from([
-        'name' => 'John Doe',
-        'email' => 'john@example.com',
-        'description' => 'Software Developer'
-    ]),
-    'matches' => [
-        ['field' => 'name', 'original_text' => 'John', 'similarity' => 1.0],
-        ['field' => 'email', 'original_text' => 'john@example.com', 'similarity' => 0.85]
-    ],
-    'similarity' => 0.95
-]
-```
-
----
-
-## Requêtes multiples (AND)
-
-### Format
-
-La requête supporte plusieurs termes séparés par `|` (pipe) :
-
-```
-terme1=champ1,champ2|terme2=champ3|terme3=champ1,champ4
-```
-
-### Logique
-
-- **Plusieurs termes** = **ET** (intersection)
-- **Plusieurs champs** = **OU** (union)
-
-### Exemples de requêtes multiples
-
-#### Deux termes (AND)
-
-```php
-// "john" dans name ET "developer" dans description
+$contexts = new ContextFilterVOCollection();
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    new ClusterQueries(['cluster' => 'tenant=company_abc'])
+));
 
 $request = SearchRequestRecord::from([
-    'query' => 'john=name|developer=description',
+    'query' => new SearchQueryVO('john=name,email'),
+    'contexts' => $contexts,
+    'limit' => 20,
+    'min_similarity' => 0.3,
+]);
+
+$results = $this->hermes->search($request);
+// Résultat : users de company_abc
+```
+
+### 7.3 Search multi-contextes
+
+```php
+// Users de company_abc OU Products de company_xyz
+$contexts = new ContextFilterVOCollection();
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    new ClusterQueries(['cluster' => 'tenant=company_abc'])
+));
+$contexts->add(new ContextFilterVO(
+    'App.Models.Product',
+    new ClusterQueries(['cluster' => 'tenant=company_xyz'])
+));
+
+$request = SearchRequestRecord::from([
+    'query' => new SearchQueryVO('john=name|product=name'),
+    'contexts' => $contexts,
     'limit' => 20,
 ]);
 
 $results = $this->hermes->search($request);
-// Résultat : documents qui contiennent "john" DANS name ET "developer" DANS description
 ```
 
-#### Terme avec plusieurs champs (OR)
+### 7.4 Récupération des modèles Eloquent
 
 ```php
-// "john" dans name OU email
-$query = new SearchQueryVO('john=name,email');
-
 $results = $this->hermes->search($request);
-// Résultat : documents qui contiennent "john" DANS name OU email
-```
 
-#### Deux termes avec plusieurs champs
+// Récupérer les instances de modèles
+$models = $results->getModelInstances(['profile', 'profile.specialty']);
 
-```php
-// "john" dans name OU email ET "developer" dans description OU bio
-$query = new SearchQueryVO('john=name,email|developer=description,bio');
-
-$results = $this->hermes->search($request);
-// Résultat : (john dans name/email) ET (developer dans description/bio)
-```
-
-#### Trois termes
-
-```php
-// "john" dans name ET "developer" dans skills ET "laravel" dans framework
-$query = new SearchQueryVO('john=name|developer=skills|laravel=framework');
-
-$results = $this->hermes->search($request);
-// Résultat : documents qui remplissent les TROIS conditions
-```
-
-### Completion avec requêtes multiples
-
-```php
-// Completion pour "john" dans name ET "jane" dans email
-$request = CompletionRequestRecord::from([
-    'query' => new SearchQueryVO('john=name|jane=email'),
-    'limit' => 10,
-]);
-
-$results = $this->hermes->complete($request);
-// Résultat : mots qui correspondent aux DEUX conditions
-```
-
-### Suggestion avec requêtes multiples
-
-```php
-// Suggestion pour "devloper" dans skills ET "musik" dans categories
-$request = SuggestionRequestRecord::from([
-    'query' => new SearchQueryVO('devloper=skills|musik=categories'),
-    'limit' => 5,
-    'min_similarity' => 0.3,
-]);
-
-$results = $this->hermes->suggest($request);
-// Résultat : suggestions qui correspondent aux DEUX conditions
+foreach ($models as $user) {
+    echo $user->name . "\n";
+    if ($user->relationLoaded('profile')) {
+        echo "  - " . $user->profile->specialty . "\n";
+    }
+}
 ```
 
 ---
 
-## Les clusters
+## 8. Syntaxe de recherche
 
-Le cluster est un **filtre contextuel** pour les recherches multi-tenant.
-
-### Format du cluster
+### 8.1 Format général
 
 ```
-key1:value1|key2:value2|key3:value3@AND
-key1:value1|key2:value2|key3:value3@OR
-key1:value1|key2:value2|key3:value3@NOT
+ngram=field1,field2|ngram2=field3|ngram3=field1,field4
 ```
 
-| Élément | Description |
+### 8.2 Exemples
+
+| Requête | Description |
 |---------|-------------|
-| `key:value` | Paire clé-valeur (une clé = une valeur) |
-| `|` | Séparateur de paires |
-| `@AND` / `@OR` / `@NOT` | Mode de recherche (obligatoire pour la recherche) |
+| `john=name` | Recherche "john" dans le champ "name" |
+| `john=name,email` | Recherche "john" dans "name" ou "email" |
+| `john=name\|doe=last_name` | Recherche "john" ET "doe" |
+| `john=profile.twitter` | Recherche dans un champ imbriqué |
 
-**Caractères autorisés :**
-- **Clés** : `a-z`, `A-Z`, `0-9`, `_` uniquement
-- **Valeurs** : Tous les caractères (libre)
+### 8.3 Comment fonctionne la recherche ?
 
-### Créer un cluster
+1. Le terme est normalisé (minuscules, accents supprimés)
+2. Le système génère tous les n-grams possibles du terme
+3. Il recherche les tokens LEXICAL correspondants
+4. Si aucun résultat, il recherche les tokens METAPHONE (phonétique)
+5. Retourne les documents trouvés
 
-```php
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
-
-// Stockage (sans mode)
-$cluster = new ClusterVO('tenant:company_abc');
-
-// Recherche (avec mode)
-$cluster = new ClusterVO('tenant:company_abc@AND');
-$cluster = new ClusterVO('tenant:company_abc|env:production@OR');
-$cluster = new ClusterVO('status:inactive@NOT');
-
-// Builder fluent
-$cluster = ClusterVO::make('type', 'user')
-    ->with('role', 'doctor')
-    ->withTernary('status', $isActive, 'active', 'inactive');
-```
-
-### Lire un cluster
-
-```php
-$cluster = new ClusterVO('tenant:company_abc|env:production');
-
-$cluster->get('tenant');  // 'company_abc'
-$cluster->get('env');     // 'production'
-$cluster->has('tenant');  // true
-$cluster->all();          // ['tenant' => 'company_abc', 'env' => 'production']
-```
-
-### Manipuler un cluster
-
-```php
-$cluster = new ClusterVO('tenant:company_abc');
-
-// Ajouter
-$new = $cluster->with('env', 'production');
-
-// Supprimer
-$new = $cluster->without('tenant');
-
-// Chaînage
-$new = $cluster
-    ->with('env', 'production')
-    ->with('region', 'europe');
-```
-
-### Collection de clusters
-
-```php
-use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
-
-$clusters = new ClusterVOCollection();
-$clusters->add(new ClusterVO('tenant:company_abc@AND'));
-$clusters->add(new ClusterVO('env:production@AND'));
-
-// Opérateurs entre clusters
-$clusters->applyToQuery($query, 'AND'); // Tous doivent correspondre
-$clusters->applyToQuery($query, 'OR');  // Au moins un doit correspondre
-$clusters->applyToQuery($query, 'NOT'); // Aucun ne doit correspondre
-```
-
-### Utiliser un cluster dans une recherche
-
-```php
-$clusters = new ClusterVOCollection();
-$clusters->add(new ClusterVO('tenant:company_abc@AND'));
-
-$request = SearchRequestRecord::from([
-    'query' => new SearchQueryVO('john=name'),
-    'clusters' => $clusters,
-    'clustersOperator' => 'AND'
-]);
-
-$results = $this->hermes->search($request);
-// Résultat : uniquement les documents du tenant company_abc
-```
+**Exemple :**
+- Indexé : "john" → tokens : ["joh", "ohn", "john"]
+- Recherche "joh" → trouve "john" car "joh" est un token
+- Recherche "jon" → trouve "john" via métaphone (JN → jn)
 
 ---
 
-## Les contextes
+## 9. Les Contextes
 
-Le contexte est un **filtre combiné** (namespace + clusters) pour les recherches.
+### 9.1 Qu'est-ce qu'un contexte ?
 
-### Créer un contexte
+Un contexte est un **filtre combiné** (namespace + clusters) pour les recherches.
+
+### 9.2 Création d'un contexte
 
 ```php
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
-use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
 
 // Uniquement namespace
 $context = new ContextFilterVO('App.Models.User');
 
 // Uniquement clusters
-$clusters = new ClusterVOCollection();
-$clusters->add(new ClusterVO('tenant:company_abc@AND'));
-$context = new ContextFilterVO(null, $clusters, 'AND');
+$context = new ContextFilterVO(
+    null,
+    new ClusterQueries(['cluster' => 'tenant=company_abc'])
+);
 
 // Les deux (ET)
-$context = new ContextFilterVO('App.Models.User', $clusters, 'AND');
+$context = new ContextFilterVO(
+    'App.Models.User',
+    new ClusterQueries(['cluster' => 'tenant=company_abc'])
+);
 ```
 
-### Utiliser un contexte
+### 9.3 Collection de contextes
 
 ```php
-$clusters = new ClusterVOCollection();
-$clusters->add(new ClusterVO('tenant:company_abc@AND'));
+use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
 
-$request = SearchRequestRecord::from([
-    'query' => new SearchQueryVO('john=name'),
-    'contexts' => $contexts,
-]);
+// Ajout unique
+$contexts->add(new ContextFilterVO('App.Models.User'));
 
-// Résultat : Users ET tenant company_abc
+// Ajout multiple
+$contexts->add(
+    new ContextFilterVO('App.Models.User'),
+    new ContextFilterVO('App.Models.Product'),
+    new ContextFilterVO(null, new ClusterQueries(['cluster' => 'status=active']))
+);
+
+// Extraction des données
+$namespaces = $contexts->getNamespaces();      // ['App.Models.User', 'App.Models.Product']
+$queries = $contexts->getClusterQueries();     // ['status=active']
+
+// Filtrage
+$userContexts = $contexts->filterByNamespace('App.Models.User');
+$activeContexts = $contexts->filterByClusterQuery('status=active');
+
+// Vérifications
+$hasNamespace = $contexts->hasAnyNamespace();  // true
+$hasCluster = $contexts->hasAnyCluster();      // true
+```
+
+### 9.4 Logique entre contextes
+
+Les contextes sont combinés avec un **OU logique** :
+
+```php
+$contexts = new ContextFilterVOCollection();
+$contexts->add(new ContextFilterVO('App.Models.User'));
+$contexts->add(new ContextFilterVO('App.Models.Product'));
+
+// Résultat : (Users) OU (Products)
 ```
 
 ---
 
-## Contextes multiples
+## 10. Combinaisons avancées
 
-### Logique OR entre les contextes
-
-```php
-$clusters = new ClusterVOCollection();
-$clusters->add(new ClusterVO('tenant:company_abc@AND'));
-
-$contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User'));
-$contexts->add(new ContextFilterVO(null, $clusters, 'AND'));
-
-$request = SearchRequestRecord::from([
-    'query' => new SearchQueryVO('john=name'),
-    'contexts' => $contexts,
-]);
-
-// Résultat : (Users) OU (documents du tenant company_abc)
-```
-
-### Logique AND à l'intérieur d'un contexte
-
-```php
-$clusters = new ClusterVOCollection();
-$clusters->add(new ClusterVO('tenant:company_abc@AND'));
-$clusters->add(new ClusterVO('env:production@AND'));
-
-$contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
-
-// Résultat : Users ET tenant company_abc ET env production
-```
-
-### Combinaison complexe de contextes
-
-```php
-$clustersUser = new ClusterVOCollection();
-$clustersUser->add(new ClusterVO('tenant:company_abc@AND'));
-
-$clustersProduct = new ClusterVOCollection();
-$clustersProduct->add(new ClusterVO('tenant:company_xyz@AND'));
-
-$contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User', $clustersUser, 'AND'));
-$contexts->add(new ContextFilterVO('App.Models.Product', $clustersProduct, 'AND'));
-
-$request = SearchRequestRecord::from([
-    'query' => new SearchQueryVO('john=name'),
-    'contexts' => $contexts,
-]);
-
-// Résultat : Users de company_abc OU Products de company_xyz
-```
-
-### Contextes multiples avec requêtes multiples
+### 10.1 Contextes multiples avec requêtes multiples
 
 ```php
 // (User ET company_abc) OU (Product ET company_xyz)
 // ET "john" dans name OU "developer" dans description
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User', $clustersUser, 'AND'));
-$contexts->add(new ContextFilterVO('App.Models.Product', $clustersProduct, 'AND'));
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    new ClusterQueries(['cluster' => 'tenant=company_abc'])
+));
+$contexts->add(new ContextFilterVO(
+    'App.Models.Product',
+    new ClusterQueries(['cluster' => 'tenant=company_xyz'])
+));
 
 $request = SearchRequestRecord::from([
     'query' => new SearchQueryVO('john=name,email|developer=description'),
@@ -617,18 +608,58 @@ $results = $this->hermes->search($request);
 // ET (john dans name/email) ET (developer dans description)
 ```
 
+### 10.2 Completion avec contexte complexe
+
+```php
+// Compléter "john" dans name des utilisateurs actifs de company_abc
+$contexts = new ContextFilterVOCollection();
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    new ClusterQueries(['cluster' => 'tenant=company_abc & status=active'])
+));
+
+$request = CompletionRequestRecord::from([
+    'query' => new SearchQueryVO('john=name,email'),
+    'limit' => 10,
+    'contexts' => $contexts,
+]);
+
+$results = $this->hermes->complete($request);
+```
+
+### 10.3 Suggestion avec contexte multi-conditions
+
+```php
+// Suggestions pour les médecins en RDC avec spécialité cardiologie
+$contexts = new ContextFilterVOCollection();
+$contexts->add(new ContextFilterVO(
+    'App.Models.Doctor',
+    new ClusterQueries(['cluster' => 'country=RDC & specialty=cardiology'])
+));
+
+$request = SuggestionRequestRecord::from([
+    'query' => new SearchQueryVO('card=specialty'),
+    'limit' => 5,
+    'min_similarity' => 0.3,
+    'contexts' => $contexts,
+]);
+
+$results = $this->hermes->suggest($request);
+```
+
 ---
 
-## Repositories
+## 11. Repositories
 
-### HermesRepository
+### 11.1 HermesRepository
+
+Le repository fournit un accès direct aux tokens indexés.
 
 ```php
 use AndyDefer\LaravelHermes\Repositories\HermesRepository;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
-use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
 
 $repository = app(HermesRepository::class);
 
@@ -637,11 +668,11 @@ $ngrams = ['joh', 'ohn', 'john'];
 $tokens = $repository->findTokensByNgrams($ngrams, limit: 10);
 
 // Avec filtres de contexte
-$clusters = new ClusterVOCollection();
-$clusters->add(new ClusterVO('tenant:company_abc@AND'));
-
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User', $clusters, 'AND'));
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    new ClusterQueries(['cluster' => 'tenant=company_abc'])
+));
 
 $tokens = $repository->findTokensByNgrams(
     $ngrams,
@@ -658,83 +689,123 @@ $count = $repository->countTokensByNgrams($ngrams);
 
 ---
 
-## Collections
+## 12. Collections
 
-### CompletionResultRecordCollection
+### 12.1 CompletionResultRecordCollection
 
 ```php
 $results = $this->hermes->complete($request);
 
 // Extraction
-$tokens = $results->getTokens();
-$originalTexts = $results->getOriginalTexts();
-$ids = $results->getIds();
-$documentIds = $results->getDocumentIds();
+$tokens = $results->getTokens();            // ['john', 'jane']
+$texts = $results->getOriginalTexts();      // ['John Doe', 'Jane Smith']
+$ids = $results->getTokenIds();             // ['token_1', 'token_2']
+$docIds = $results->getDocumentIds();       // ['doc_1', 'doc_2']
+$scores = $results->getSimilarities();      // [0.95, 0.85]
+$fields = $results->getFields();            // ['name', 'email']
 
 // Filtrage
 $byField = $results->filterByField('name');
 $bySimilarity = $results->filterByMinSimilarity(0.5);
+
+// Meilleur résultat
+$best = $results->getBestMatch();
+
+// Regroupement
+$byDoc = $results->groupByDocument();
+$byField = $results->groupByField();
 ```
 
-### SuggestionResultRecordCollection
+### 12.2 SuggestionResultRecordCollection
 
 ```php
 $results = $this->hermes->suggest($request);
 
-// Extraction
+// Extraction (mêmes méthodes que Completion)
 $tokens = $results->getTokens();
-$originalTexts = $results->getOriginalTexts();
-$ids = $results->getIds();
-$documentIds = $results->getDocumentIds();
+$texts = $results->getOriginalTexts();
+$ids = $results->getIds();                  // ⚠️ token_id (renommer en getTokenIds)
+$docIds = $results->getDocumentIds();
+$scores = $results->getSimilarities();
+$fields = $results->getFields();
 
 // Filtrage
 $byField = $results->filterByField('name');
 $bySimilarity = $results->filterByMinSimilarity(0.5);
+
+// Meilleur résultat
+$best = $results->getBestMatch();
+
+// Regroupement
+$byDoc = $results->groupByDocument();
+$byField = $results->groupByField();
 ```
 
-### SearchResultRecordCollection
+### 12.3 SearchResultRecordCollection
 
 ```php
 $results = $this->hermes->search($request);
 
 // Extraction
-$documentIds = $results->getDocumentIds();
-$fingerprints = $results->getFingerprints();
-$data = $results->getData();
-$matches = $results->getMatches();
+$docIds = $results->getDocumentIds();        // ['doc_1', 'doc_2']
+$fingerprints = $results->getFingerprints();  // ['App.Models.User|1', ...]
+$namespaces = $results->getNamespaces();      // ['App.Models.User', ...]
+$ids = $results->getEntityIds();              // ['1', '2']
+$data = $results->getData();                  // Tableau des données
+$matches = $results->getMatches();            // Tableau des matchs
 
 // Filtrage
 $bySimilarity = $results->filterByMinSimilarity(0.5);
 $byField = $results->filterByField('name');
+$byNamespace = $results->filterByNamespace('App.Models.User');
+$byNamespaces = $results->filterByNamespaces(['App.Models.User', 'App.Models.Product']);
+
+// Chargement des modèles Eloquent
+$models = $results->getModelInstances(['profile', 'profile.specialty']);
+
+// Vérifications
+$hasUser = $results->belongsToNamespace('App.Models.User');
+$hasUserOrProduct = $results->belongsToAnyNamespace(['App.Models.User', 'App.Models.Product']);
+
+// Regroupement
+$byNamespace = $results->groupByNamespace();
 ```
 
-### ContextFilterVOCollection
+### 12.4 SearchResultVOCollection
 
 ```php
-$contexts = new ContextFilterVOCollection();
+use AndyDefer\LaravelHermes\Collections\SearchResultVOCollection;
 
-// Ajout
-$contexts->add(new ContextFilterVO('App.Models.User'));
+$vos = new SearchResultVOCollection();
+
+// Ajout de VO (créés par le service)
+$vos->add($vo1, $vo2, $vo3);
 
 // Extraction
-$namespaces = $contexts->getNamespaces();
-$clusterCollections = $contexts->getClusterCollections();
-$allClusters = $contexts->getAllClusters();
+$dataObjects = $vos->getDatas();             // DataCollection
+$fingerprints = $vos->getFingerprints();     // StringTypedCollection
+$matches = $vos->getMatches();               // MatchRecordCollection
+$scores = $vos->getSimilarities();           // [0.95, 0.85]
+$namespaces = $vos->getNamespaces();         // ['App.Models.User', ...]
+$dataArrays = $vos->getDataArrays();         // Tableau des données
 
 // Filtrage
-$byNamespace = $contexts->filterByNamespace('App.Models.User');
-$withClusters = $contexts->filterWithClusters();
-$withNamespace = $contexts->filterWithNamespace();
+$bySimilarity = $vos->filterByMinSimilarity(0.5);
+$byNamespace = $vos->filterByNamespace('App.Models.User');
+$byNamespaces = $vos->filterByNamespaces(['App.Models.User', 'App.Models.Product']);
 
-// Groupement
-$groupedByOperator = $contexts->getClustersGroupedByOperator();
+// Meilleur résultat
+$best = $vos->getBestMatch();
+
+// Regroupement
+$byNamespace = $vos->groupByNamespace();
 ```
 
 ---
 
-## Exemple complet : API de recherche
+## 13. Exemple complet : API de recherche
 
-### Contrôleur
+### 13.1 Contrôleur
 
 ```php
 <?php
@@ -747,18 +818,17 @@ use AndyDefer\LaravelHermes\Records\SearchRequestRecord;
 use AndyDefer\LaravelHermes\Records\SuggestionRequestRecord;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
-use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use AndyDefer\LaravelIndexer\ValueObjects\SearchQueryVO;
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
 use Illuminate\Http\Request;
 
 class SearchController extends Controller
 {
     public function __construct(
-        private HermesInterface $hermes
+        private readonly HermesInterface $hermes
     ) {}
 
-    public function autocomplete(Request $request)
+    public function autocomplete(Request $request): JsonResponse
     {
         $request = CompletionRequestRecord::from([
             'query' => new SearchQueryVO($request->get('q') . '=name,email,bio'),
@@ -769,11 +839,15 @@ class SearchController extends Controller
         $results = $this->hermes->complete($request);
 
         return response()->json([
-            'suggestions' => $results->getOriginalTexts()
+            'suggestions' => $results->map(fn($r) => [
+                'text' => $r->original_text,
+                'field' => $r->field,
+                'score' => $r->similarity,
+            ])->toArray(),
         ]);
     }
 
-    public function search(Request $request)
+    public function search(Request $request): JsonResponse
     {
         // Construction de la query
         $queryParts = [];
@@ -781,13 +855,14 @@ class SearchController extends Controller
         if ($request->get('name')) {
             $queryParts[] = $request->get('name') . '=name';
         }
-        
         if ($request->get('email')) {
             $queryParts[] = $request->get('email') . '=email';
         }
-        
         if ($request->get('bio')) {
             $queryParts[] = $request->get('bio') . '=bio';
+        }
+        if ($request->get('skills')) {
+            $queryParts[] = $request->get('skills') . '=skills';
         }
         
         $queryString = implode('|', $queryParts);
@@ -807,6 +882,7 @@ class SearchController extends Controller
                     'id' => $result->document_id,
                     'data' => $result->data->toArray(),
                     'score' => $result->similarity,
+                    'fingerprint' => $result->fingerprint,
                     'matches' => $result->matches->map(function ($match) {
                         return [
                             'field' => $match->field,
@@ -817,13 +893,14 @@ class SearchController extends Controller
                 ];
             })->toArray(),
             'total' => $results->count(),
+            'limit' => $request->limit,
         ]);
     }
 
-    public function suggest(Request $request)
+    public function suggest(Request $request): JsonResponse
     {
         $request = SuggestionRequestRecord::from([
-            'query' => new SearchQueryVO($request->get('q') . '=name,email,bio'),
+            'query' => new SearchQueryVO($request->get('q') . '=name,email,bio,skills'),
             'limit' => 5,
             'min_similarity' => $request->get('min_similarity', 0.3),
             'contexts' => $this->getContexts($request),
@@ -846,25 +923,25 @@ class SearchController extends Controller
     {
         $contexts = new ContextFilterVOCollection();
 
-        if ($request->user()) {
-            // Filtre par tenant (cluster)
-            if ($request->user()->tenant_id) {
-                $clusters = new ClusterVOCollection();
-                $clusters->add(new ClusterVO('tenant:' . $request->user()->tenant_id . '@AND'));
-                $contexts->add(new ContextFilterVO(null, $clusters, 'AND'));
-            }
+        // Filtre par tenant (si l'utilisateur est connecté)
+        if ($request->user() && $request->user()->tenant_id) {
+            $contexts->add(new ContextFilterVO(
+                null,
+                new ClusterQueries(['cluster' => 'tenant=' . $request->user()->tenant_id])
+            ));
+        }
 
-            // Filtre par namespace
-            if ($request->get('namespace')) {
-                $contexts->add(new ContextFilterVO($request->get('namespace')));
-            }
+        // Filtre par namespace (si demandé)
+        if ($request->get('namespace')) {
+            $contexts->add(new ContextFilterVO($request->get('namespace')));
+        }
 
-            // Les deux
-            if ($request->user()->tenant_id && $request->get('namespace')) {
-                $clusters = new ClusterVOCollection();
-                $clusters->add(new ClusterVO('tenant:' . $request->user()->tenant_id . '@AND'));
-                $contexts->add(new ContextFilterVO($request->get('namespace'), $clusters, 'AND'));
-            }
+        // Filtre par statut
+        if ($request->get('status')) {
+            $contexts->add(new ContextFilterVO(
+                null,
+                new ClusterQueries(['cluster' => 'status=' . $request->get('status')])
+            ));
         }
 
         return $contexts;
@@ -872,7 +949,7 @@ class SearchController extends Controller
 }
 ```
 
-### Routes
+### 13.2 Routes
 
 ```php
 // routes/api.php
@@ -880,9 +957,327 @@ use App\Http\Controllers\SearchController;
 
 Route::prefix('search')->middleware('auth:sanctum')->group(function () {
     Route::get('/autocomplete', [SearchController::class, 'autocomplete']);
-    Route::get('/search', [SearchController::class, 'search']);
     Route::get('/suggest', [SearchController::class, 'suggest']);
+    Route::get('/', [SearchController::class, 'search']);
 });
+```
+
+---
+
+## 14. Cas d'usage concrets
+
+### 14.1 Recherche d'utilisateurs avec filtres
+
+```php
+<?php
+
+namespace App\Services;
+
+use AndyDefer\LaravelHermes\Contracts\Services\HermesInterface;
+use AndyDefer\LaravelHermes\Records\SearchRequestRecord;
+use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
+use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
+use AndyDefer\LaravelIndexer\ValueObjects\SearchQueryVO;
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
+
+class UserSearchService
+{
+    public function __construct(
+        private readonly HermesInterface $hermes
+    ) {}
+
+    public function searchDoctors(string $query, string $city, string $specialty): array
+    {
+        $contexts = new ContextFilterVOCollection();
+        $contexts->add(new ContextFilterVO(
+            'App.Models.Doctor',
+            new ClusterQueries([
+                'cluster' => "city=$city & specialty=$specialty & status=active"
+            ])
+        ));
+
+        $request = SearchRequestRecord::from([
+            'query' => new SearchQueryVO($query . '=name,bio,specialty'),
+            'contexts' => $contexts,
+            'limit' => 20,
+        ]);
+
+        $results = $this->hermes->search($request);
+
+        return $results->getModelInstances(['profile', 'profile.specialty'])->toArray();
+    }
+}
+```
+
+### 14.2 API de recherche e-commerce
+
+```php
+<?php
+
+namespace App\Services;
+
+use AndyDefer\LaravelHermes\Contracts\Services\HermesInterface;
+use AndyDefer\LaravelHermes\Records\SearchRequestRecord;
+use AndyDefer\LaravelIndexer\ValueObjects\SearchQueryVO;
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
+
+class ProductSearchService
+{
+    public function __construct(
+        private readonly HermesInterface $hermes
+    ) {}
+
+    public function searchProducts(string $query, array $filters): array
+    {
+        $conditions = [];
+
+        if (isset($filters['category'])) {
+            $conditions[] = "category={$filters['category']}";
+        }
+        if (isset($filters['min_price'])) {
+            $conditions[] = "price>={$filters['min_price']}";
+        }
+        if (isset($filters['max_price'])) {
+            $conditions[] = "price<={$filters['max_price']}";
+        }
+        if (isset($filters['in_stock'])) {
+            $conditions[] = "in_stock=" . ($filters['in_stock'] ? 'true' : 'false');
+        }
+
+        $clusterQuery = implode(' & ', $conditions);
+
+        $request = SearchRequestRecord::from([
+            'query' => new SearchQueryVO($query . '=name,description,tags'),
+            'limit' => $filters['limit'] ?? 20,
+            'min_similarity' => $filters['min_similarity'] ?? 0.3,
+            'contexts' => null, // Les clusters sont dans la requête
+        ]);
+
+        // Utilisation directe des clusters (alternative)
+        $results = $this->hermes->search($request);
+
+        return $results->getModelInstances()->toArray();
+    }
+}
+
+// Utilisation
+$service = new ProductSearchService($hermes);
+$products = $service->searchProducts('laptop', [
+    'category' => 'electronics',
+    'min_price' => 500,
+    'max_price' => 2000,
+    'in_stock' => true,
+    'limit' => 10,
+]);
+```
+
+### 14.3 API de suggestions en temps réel
+
+```php
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use AndyDefer\LaravelHermes\Contracts\Services\HermesInterface;
+use AndyDefer\LaravelHermes\Records\CompletionRequestRecord;
+use AndyDefer\LaravelIndexer\ValueObjects\SearchQueryVO;
+
+class AutocompleteController extends Controller
+{
+    public function __construct(
+        private readonly HermesInterface $hermes
+    ) {}
+
+    public function __invoke(Request $request): JsonResponse
+    {
+        $query = $request->get('q');
+        $field = $request->get('field', 'name');
+        $limit = $request->get('limit', 10);
+
+        if (strlen($query) < 2) {
+            return response()->json(['suggestions' => []]);
+        }
+
+        $request = CompletionRequestRecord::from([
+            'query' => new SearchQueryVO($query . '=' . $field),
+            'limit' => $limit,
+        ]);
+
+        $results = $this->hermes->complete($request);
+
+        return response()->json([
+            'suggestions' => $results->map(fn($r) => [
+                'value' => $r->original_text,
+                'score' => $r->similarity,
+            ])->toArray(),
+        ]);
+    }
+}
+```
+
+---
+
+## 15. Débogage et résolution des problèmes
+
+### 15.1 Vérifier les modèles indexés
+
+```php
+// Vérifier qu'un modèle est indexé
+use AndyDefer\LaravelIndexer\Contracts\IndexerInterface;
+
+$indexer = app(IndexerInterface::class);
+$user = User::find(1);
+$exists = $indexer->exists($user);
+dump($exists);
+```
+
+### 15.2 Vérifier les clusters
+
+```php
+$user = User::find(1);
+dump($user->getIndexableCluster()->toArray());
+```
+
+### 15.3 Vérifier les tokens indexés
+
+```php
+use AndyDefer\LaravelIndexer\Repositories\IndexedTokenRepository;
+
+$repository = app(IndexedTokenRepository::class);
+$tokens = $repository->findByToken('john');
+dump($tokens);
+```
+
+### 15.4 Problèmes courants
+
+| Problème | Cause | Solution |
+|----------|-------|----------|
+| Aucun résultat | Requête invalide | Vérifier la syntaxe de recherche |
+| Résultats incomplets | Token size trop petit | Augmenter `gram_min_size` dans la config |
+| Recherche lente | Pas d'index sur les tokens | Vérifier les migrations et les index |
+| Contextes ignorés | ClusterQueries mal formaté | Vérifier la syntaxe `key=value` |
+| Erreur de syntaxe | Parenthèses mal équilibrées | Vérifier les parenthèses dans la requête |
+
+### 15.5 Vérification de l'index
+
+```bash
+# Vérifier les documents indexés
+php artisan tinker
+>>> app(AndyDefer\LaravelIndexer\Contracts\IndexerInterface::class)->countIndexed(App\Models\User::class);
+
+# Voir le SQL généré
+DB::enableQueryLog();
+$results = $hermes->search($request);
+dump(DB::getQueryLog());
+```
+
+---
+
+## 16. Performance et bonnes pratiques
+
+### 16.1 Recherche
+
+```php
+// ✅ Recommandé - Limiter les résultats
+$request = SearchRequestRecord::from([
+    'query' => $query,
+    'limit' => 20,
+]);
+
+// ✅ Recommandé - Utiliser les contextes pour filtrer
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    new ClusterQueries(['cluster' => 'status=active'])
+));
+
+// ✅ Recommandé - Utiliser getModelInstances() pour charger les relations
+$models = $results->getModelInstances(['profile', 'profile.specialty']);
+
+// ❌ À éviter - Recherche sans limite
+$request = SearchRequestRecord::from([
+    'query' => $query,
+    'limit' => null,  // Pas de limite = risque de performance
+]);
+
+// ❌ À éviter - Chargement individuel des modèles
+foreach ($results as $result) {
+    $user = User::find($result->id);  // N+1 problème
+}
+```
+
+### 16.2 Completion et Suggestion
+
+```php
+// ✅ Recommandé - Utiliser un seuil de similarité
+$request = SuggestionRequestRecord::from([
+    'query' => 'devloper=skills',
+    'min_similarity' => 0.3,  // Évite les suggestions trop éloignées
+    'limit' => 5,
+]);
+
+// ✅ Recommandé - Limiter les résultats pour les autocomplétions
+$request = CompletionRequestRecord::from([
+    'query' => 'joh=name',
+    'limit' => 10,  // Max 10 suggestions
+]);
+```
+
+### 16.3 Contextes
+
+```php
+// ✅ Recommandé - Contextes simples
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    new ClusterQueries(['cluster' => 'tenant=company_abc'])
+));
+
+// ✅ Recommandé - Contextes avec AND
+$contexts->add(new ContextFilterVO(
+    'App.Models.User',
+    new ClusterQueries(['cluster' => 'tenant=company_abc & status=active'])
+));
+
+// ⚠️ À éviter - Trop de contextes OR (performance)
+$contexts->add(new ContextFilterVO('App.Models.User'));
+$contexts->add(new ContextFilterVO('App.Models.Product'));
+$contexts->add(new ContextFilterVO('App.Models.Order'));
+$contexts->add(new ContextFilterVO('App.Models.Invoice'));
+```
+
+### 16.4 Configuration recommandée
+
+```php
+// config/hermes.php
+return [
+    'similarity' => [
+        'gram_min_size' => 2,      // Bon équilibre
+        'gram_max_size' => 4,      // Bon équilibre
+        'min_word_length' => 2,    // Ignorer les mots trop courts
+        'max_words' => 50,         // Limite pour les longs textes
+        'max_pairs' => 2500,       // Éviter les explosions de calcul
+        'timeout_seconds' => 0.5,  // Timeout pour les calculs lourds
+    ],
+];
+```
+
+### 16.5 Optimisation des modèles
+
+```php
+public function shouldBeIndexed(): bool
+{
+    // ✅ Indexer uniquement les modèles actifs
+    return $this->is_active && !$this->trashed();
+}
+
+public function getIndexableCluster(): ClusterVO
+{
+    // ✅ Utiliser des clusters pour le filtrage
+    return new ClusterVO([
+        'status' => $this->is_active ? 'active' : 'inactive',
+        'tenant' => $this->tenant_id,
+        // ✅ Éviter les valeurs trop dynamiques (ex: updated_at)
+    ]);
+}
 ```
 
 ---

@@ -80,8 +80,8 @@ final class SearchResultVOCollectionTest extends TestCase
     public function test_can_add_items(): void
     {
         $collection = new SearchResultVOCollection;
-        $vo1 = $this->createSearchResultVO('App.Models.User|1', 0.95);
-        $vo2 = $this->createSearchResultVO('App.Models.User|2', 0.75);
+        $vo1 = $this->createSearchResultVO('App\\Models\\User|1', 0.95);
+        $vo2 = $this->createSearchResultVO('App\\Models\\User|2', 0.75);
 
         $collection->add($vo1);
         $collection->add($vo2);
@@ -98,8 +98,8 @@ final class SearchResultVOCollectionTest extends TestCase
     public function test_get_datas_returns_data_collection(): void
     {
         $collection = new SearchResultVOCollection;
-        $collection->add($this->createSearchResultVO('App.Models.User|1', 0.95));
-        $collection->add($this->createSearchResultVO('App.Models.User|2', 0.75));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|1', 0.95));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|2', 0.75));
 
         $datas = $collection->getDatas();
 
@@ -115,15 +115,15 @@ final class SearchResultVOCollectionTest extends TestCase
     public function test_get_fingerprints_returns_typed_collection(): void
     {
         $collection = new SearchResultVOCollection;
-        $collection->add($this->createSearchResultVO('App.Models.User|1', 0.95));
-        $collection->add($this->createSearchResultVO('App.Models.Doctor|2', 0.75));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|1', 0.95));
+        $collection->add($this->createSearchResultVO('App\\Models\\Doctor|2', 0.75));
 
         $fingerprints = $collection->getFingerprints();
 
         $this->assertInstanceOf(StringTypedCollection::class, $fingerprints);
         $this->assertCount(2, $fingerprints);
-        $this->assertEquals('App.Models.User|1', $fingerprints->first());
-        $this->assertEquals('App.Models.Doctor|2', $fingerprints->last());
+        $this->assertEquals('App\\Models\\User|1', $fingerprints->first());
+        $this->assertEquals('App\\Models\\Doctor|2', $fingerprints->last());
     }
 
     // ============================================================
@@ -134,7 +134,7 @@ final class SearchResultVOCollectionTest extends TestCase
     {
         $collection = new SearchResultVOCollection;
         $collection->add($this->createSearchResultVO(
-            'App.Models.User|1',
+            'App\\Models\\User|1',
             0.95,
             [
                 ['field' => 'name', 'original_text' => 'John', 'similarity' => 1.0],
@@ -157,9 +157,9 @@ final class SearchResultVOCollectionTest extends TestCase
     public function test_filter_by_min_similarity(): void
     {
         $collection = new SearchResultVOCollection;
-        $collection->add($this->createSearchResultVO('App.Models.User|1', 0.95));
-        $collection->add($this->createSearchResultVO('App.Models.User|2', 0.75));
-        $collection->add($this->createSearchResultVO('App.Models.User|3', 0.50));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|1', 0.95));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|2', 0.75));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|3', 0.50));
 
         $filtered = $collection->filterByMinSimilarity(0.7);
 
@@ -176,16 +176,16 @@ final class SearchResultVOCollectionTest extends TestCase
     public function test_filter_by_namespace(): void
     {
         $collection = new SearchResultVOCollection;
-        $collection->add($this->createSearchResultVO('App.Models.User|1', 0.95));
-        $collection->add($this->createSearchResultVO('App.Models.User|2', 0.75));
-        $collection->add($this->createSearchResultVO('App.Models.Doctor|3', 0.85));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|1', 0.95));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|2', 0.75));
+        $collection->add($this->createSearchResultVO('App\\Models\\Doctor|3', 0.85));
 
-        $filtered = $collection->filterByNamespace('App.Models.User');
+        $filtered = $collection->filterByNamespace('App\\Models\\User');
 
         $this->assertInstanceOf(SearchResultVOCollection::class, $filtered);
         $this->assertCount(2, $filtered);
-        $this->assertEquals('App.Models.User|1', $filtered->first()->getValue()['fingerprint']);
-        $this->assertEquals('App.Models.User|2', $filtered->last()->getValue()['fingerprint']);
+        $this->assertEquals('App\\Models\\User|1', $filtered->first()->getValue()['fingerprint']);
+        $this->assertEquals('App\\Models\\User|2', $filtered->last()->getValue()['fingerprint']);
     }
 
     // ============================================================
@@ -195,16 +195,16 @@ final class SearchResultVOCollectionTest extends TestCase
     public function test_filter_by_multiple_namespaces(): void
     {
         $collection = new SearchResultVOCollection;
-        $collection->add($this->createSearchResultVO('App.Models.User|1', 0.95));
-        $collection->add($this->createSearchResultVO('App.Models.Doctor|2', 0.85));
-        $collection->add($this->createSearchResultVO('App.Models.Pharmacy|3', 0.75));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|1', 0.95));
+        $collection->add($this->createSearchResultVO('App\\Models\\Doctor|2', 0.85));
+        $collection->add($this->createSearchResultVO('App\\Models\\Pharmacy|3', 0.75));
 
-        $filtered = $collection->filterByNamespaces(['App.Models.User', 'App.Models.Doctor']);
+        $filtered = $collection->filterByNamespaces(['App\\Models\\User', 'App\\Models\\Doctor']);
 
         $this->assertInstanceOf(SearchResultVOCollection::class, $filtered);
         $this->assertCount(2, $filtered);
-        $this->assertEquals('App.Models.User|1', $filtered->first()->getValue()['fingerprint']);
-        $this->assertEquals('App.Models.Doctor|2', $filtered->last()->getValue()['fingerprint']);
+        $this->assertEquals('App\\Models\\User|1', $filtered->first()->getValue()['fingerprint']);
+        $this->assertEquals('App\\Models\\Doctor|2', $filtered->last()->getValue()['fingerprint']);
     }
 
     // ============================================================
@@ -214,9 +214,9 @@ final class SearchResultVOCollectionTest extends TestCase
     public function test_group_by_namespace(): void
     {
         $collection = new SearchResultVOCollection;
-        $collection->add($this->createSearchResultVO('App.Models.User|1', 0.95));
-        $collection->add($this->createSearchResultVO('App.Models.User|2', 0.75));
-        $collection->add($this->createSearchResultVO('App.Models.Doctor|3', 0.85));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|1', 0.95));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|2', 0.75));
+        $collection->add($this->createSearchResultVO('App\\Models\\Doctor|3', 0.85));
 
         $groups = $collection->groupByNamespace();
 
@@ -226,11 +226,11 @@ final class SearchResultVOCollectionTest extends TestCase
         $groupsArray = $groups->toArray();
 
         $this->assertCount(2, $groupsArray);
-        $this->assertArrayHasKey('App.Models.User', $groupsArray);
-        $this->assertArrayHasKey('App.Models.Doctor', $groupsArray);
-        $this->assertCount(2, $groupsArray['App.Models.User']);
-        $this->assertCount(1, $groupsArray['App.Models.Doctor']);
-        $this->assertInstanceOf(SearchResultVOCollection::class, $groupsArray['App.Models.User']);
+        $this->assertArrayHasKey('App\\Models\\User', $groupsArray);
+        $this->assertArrayHasKey('App\\Models\\Doctor', $groupsArray);
+        $this->assertCount(2, $groupsArray['App\\Models\\User']);
+        $this->assertCount(1, $groupsArray['App\\Models\\Doctor']);
+        $this->assertInstanceOf(SearchResultVOCollection::class, $groupsArray['App\\Models\\User']);
     }
 
     // ============================================================
@@ -240,17 +240,17 @@ final class SearchResultVOCollectionTest extends TestCase
     public function test_can_chain_filters(): void
     {
         $collection = new SearchResultVOCollection;
-        $collection->add($this->createSearchResultVO('App.Models.User|1', 0.95));
-        $collection->add($this->createSearchResultVO('App.Models.User|2', 0.75));
-        $collection->add($this->createSearchResultVO('App.Models.Doctor|3', 0.85));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|1', 0.95));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|2', 0.75));
+        $collection->add($this->createSearchResultVO('App\\Models\\Doctor|3', 0.85));
 
         $filtered = $collection
-            ->filterByNamespace('App.Models.User')
+            ->filterByNamespace('App\\Models\\User')
             ->filterByMinSimilarity(0.8);
 
         $this->assertInstanceOf(SearchResultVOCollection::class, $filtered);
         $this->assertCount(1, $filtered);
-        $this->assertEquals('App.Models.User|1', $filtered->first()->getValue()['fingerprint']);
+        $this->assertEquals('App\\Models\\User|1', $filtered->first()->getValue()['fingerprint']);
         $this->assertEquals(0.95, $filtered->first()->getValue()['similarity']);
     }
 
@@ -261,7 +261,7 @@ final class SearchResultVOCollectionTest extends TestCase
     public function test_can_convert_to_array(): void
     {
         $collection = new SearchResultVOCollection;
-        $collection->add($this->createSearchResultVO('App.Models.User|1', 0.95));
+        $collection->add($this->createSearchResultVO('App\\Models\\User|1', 0.95));
 
         $array = $collection->toArray();
 
@@ -277,7 +277,7 @@ final class SearchResultVOCollectionTest extends TestCase
         $this->assertArrayHasKey('similarity', $value->toArray());
         $this->assertArrayHasKey('matches', $value->toArray());
         $this->assertArrayHasKey('fingerprint', $value->toArray());
-        $this->assertEquals('App.Models.User|1', $value->toArray()['fingerprint']);
+        $this->assertEquals('App\\Models\\User|1', $value->toArray()['fingerprint']);
         $this->assertEquals(0.95, $value->toArray()['similarity']);
     }
 }
