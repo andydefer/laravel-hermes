@@ -5,18 +5,17 @@ declare(strict_types=1);
 namespace AndyDefer\LaravelHermes\Tests\Integration\Repositories;
 
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\Repositories\HermesRepository;
 use AndyDefer\LaravelHermes\Tests\Fixtures\Models\TestProduct;
 use AndyDefer\LaravelHermes\Tests\Fixtures\Models\TestUser;
 use AndyDefer\LaravelHermes\Tests\IntegrationTestCase;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
-use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
 use AndyDefer\LaravelIndexer\Contracts\IndexerInterface;
-use AndyDefer\LaravelIndexer\Models\IndexedDocument;
-use AndyDefer\LaravelIndexer\Models\IndexedToken;
 use AndyDefer\LaravelIndexer\Services\Composants\IndexableRecordFactory;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
+use AndyDefer\LaravelIndexer\ValueObjects\IndexableFingerprintVO;
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
 use Illuminate\Support\Collection;
 
 final class HermesRepositoryTest extends IntegrationTestCase
@@ -33,7 +32,7 @@ final class HermesRepositoryTest extends IntegrationTestCase
         $this->indexer = $this->app->make(IndexerInterface::class);
     }
 
-    private function createAndIndexUser(int $id, string $name, string $email, string $description = '', string $cluster = 'tenant:company_abc'): void
+    private function createAndIndexUser(int $id, string $name, string $email, string $description = '', array $cluster = ['tenant' => 'company_abc']): void
     {
         $user = TestUser::create([
             'id' => $id,
@@ -46,13 +45,9 @@ final class HermesRepositoryTest extends IntegrationTestCase
         $clusterVO = new ClusterVO($cluster);
         $record = IndexableRecordFactory::convert($user, $clusterVO);
         $this->indexer->index($record);
-
-        $tokens = IndexedToken::whereHas('document', function ($q) use ($id) {
-            $q->where('fingerprint', 'LIKE', '%|'.$id);
-        })->get();
     }
 
-    private function createAndIndexProduct(int $id, string $name, string $reference, string $description = '', string $cluster = 'tenant:company_abc'): void
+    private function createAndIndexProduct(int $id, string $name, string $reference, string $description = '', array $cluster = ['tenant' => 'company_abc']): void
     {
         $product = TestProduct::create([
             'id' => $id,
@@ -65,6 +60,19 @@ final class HermesRepositoryTest extends IntegrationTestCase
         $clusterVO = new ClusterVO($cluster);
         $record = IndexableRecordFactory::convert($product, $clusterVO);
         $this->indexer->index($record);
+    }
+
+    private function createContextFilterForNamespace(string $namespace): ContextFilterVO
+    {
+        return new ContextFilterVO($namespace);
+    }
+
+    private function createContextFilterForCluster(array $queries, ?string $namespace = null): ContextFilterVO
+    {
+        return new ContextFilterVO(
+            $namespace,
+            new ClusterQueries($queries)
+        );
     }
 
     public function test_find_tokens_by_ngrams_returns_tokens(): void
@@ -87,7 +95,7 @@ final class HermesRepositoryTest extends IntegrationTestCase
     {
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
         $this->createAndIndexUser(2, 'Jane Smith', 'jane@example.com');
-        $ngrams = ['joh', 'joh', 'jan'];
+        $ngrams = ['joh', 'jan'];
 
         $result = $this->repository->findTokensByNgrams($ngrams, limit: 2);
 
@@ -117,20 +125,10 @@ final class HermesRepositoryTest extends IntegrationTestCase
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
         $this->createAndIndexProduct(1, 'Product X', 'REF-001');
 
-        $documents = IndexedDocument::all();
-        $userNamespace = null;
-
-        foreach ($documents as $doc) {
-            $parts = explode('|', $doc->fingerprint);
-            $namespace = $parts[0] ?? null;
-
-            if (str_contains($doc->fingerprint, 'TestUser')) {
-                $userNamespace = $namespace;
-            }
-        }
+        $userNamespace = TestUser::class;
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO($userNamespace));
+        $contexts->add($this->createContextFilterForNamespace($userNamespace));
 
         $ngrams = ['joh', 'ohn', 'john'];
 
@@ -138,21 +136,20 @@ final class HermesRepositoryTest extends IntegrationTestCase
 
         $this->assertNotEmpty($result);
         foreach ($result as $token) {
-            $this->assertStringContainsString('TestUser', $token->document->fingerprint);
-            $this->assertStringNotContainsString('TestProduct', $token->document->fingerprint);
+            $this->assertStringContainsString('TestUser', $token->document->fingerprint->getNamespace());
+            $this->assertStringNotContainsString('TestProduct', $token->document->fingerprint->getNamespace());
         }
     }
 
     public function test_find_tokens_by_ngrams_with_cluster_filter(): void
     {
-        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
-        $this->createAndIndexUser(2, 'Jane Doe', 'jane@example.com', cluster: 'tenant:company_xyz');
-
-        $clusters = new ClusterVOCollection;
-        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: ['tenant' => 'company_abc']);
+        $this->createAndIndexUser(2, 'Jane Doe', 'jane@example.com', cluster: ['tenant' => 'company_xyz']);
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO(null, $clusters, 'AND'));
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'tenant=company_abc',
+        ]));
 
         $ngrams = ['joh', 'ohn'];
 
@@ -160,51 +157,45 @@ final class HermesRepositoryTest extends IntegrationTestCase
 
         $this->assertNotEmpty($result);
         foreach ($result as $token) {
-            $this->assertStringContainsString('tenant:company_abc', $token->document->cluster);
+            $document = $token->document;
+            $this->assertEquals('company_abc', $document->cluster->get('tenant'));
         }
     }
 
-    public function test_find_tokens_by_ngrams_with_cluster_filter_or(): void
+    public function test_find_tokens_by_ngrams_with_cluster_filter_and_condition(): void
     {
-        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
-        $this->createAndIndexUser(2, 'Jane Doe', 'jane@example.com', cluster: 'tenant:company_xyz');
-        $this->createAndIndexUser(3, 'Bob Smith', 'bob@example.com', cluster: 'tenant:company_xyz');
-
-        $clusters = new ClusterVOCollection;
-        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: ['tenant' => 'company_abc', 'status' => 'active']);
+        $this->createAndIndexUser(2, 'Jane Doe', 'jane@example.com', cluster: ['tenant' => 'company_abc', 'status' => 'inactive']);
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO(null, $clusters, 'OR'));
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'tenant=company_abc & status=active',
+        ]));
 
-        $ngrams = ['joh', 'jan', 'bob'];
+        $ngrams = ['joh', 'ohn'];
 
         $result = $this->repository->findTokensByNgrams($ngrams, contexts: $contexts);
 
         $this->assertNotEmpty($result);
+        foreach ($result as $token) {
+            $document = $token->document;
+            $this->assertEquals('company_abc', $document->cluster->get('tenant'));
+            $this->assertEquals('active', $document->cluster->get('status'));
+        }
     }
 
     public function test_find_tokens_by_ngrams_with_multiple_contexts(): void
     {
-        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
-        $this->createAndIndexProduct(1, 'Product X', 'REF-001', cluster: 'tenant:company_xyz');
-
-        $clustersUser = new ClusterVOCollection;
-        $clustersUser->add(new ClusterVO('tenant:company_abc@AND'));
-
-        $clustersProduct = new ClusterVOCollection;
-        $clustersProduct->add(new ClusterVO('tenant:company_xyz@AND'));
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: ['tenant' => 'company_abc']);
+        $this->createAndIndexProduct(1, 'Product X', 'REF-001', cluster: ['tenant' => 'company_xyz']);
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO(
-            'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser',
-            $clustersUser,
-            'AND'
-        ));
-        $contexts->add(new ContextFilterVO(
-            null,
-            $clustersProduct,
-            'AND'
-        ));
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'tenant=company_abc',
+        ], TestUser::class));
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'tenant=company_xyz',
+        ]));
 
         $ngrams = ['joh', 'ohn', 'pro', 'rod'];
 
@@ -216,10 +207,11 @@ final class HermesRepositoryTest extends IntegrationTestCase
         $hasProduct = false;
 
         foreach ($result as $token) {
-            if (str_contains($token->document->fingerprint, 'TestUser')) {
+            $namespace = $token->document->fingerprint->getNamespace();
+            if (str_contains($namespace, 'TestUser')) {
                 $hasUser = true;
             }
-            if (str_contains($token->document->fingerprint, 'TestProduct')) {
+            if (str_contains($namespace, 'TestProduct')) {
                 $hasProduct = true;
             }
         }
@@ -239,7 +231,7 @@ final class HermesRepositoryTest extends IntegrationTestCase
         foreach ($result as $token) {
             $this->assertTrue($token->relationLoaded('document'));
             $this->assertNotNull($token->document);
-            $this->assertStringContainsString('TestUser', $token->document->fingerprint);
+            $this->assertStringContainsString('TestUser', $token->document->fingerprint->getNamespace());
         }
     }
 
@@ -313,9 +305,13 @@ final class HermesRepositoryTest extends IntegrationTestCase
         $this->assertIsArray($grouped);
         $this->assertCount(2, $grouped);
 
-        $fingerprints = array_column($grouped, 'fingerprint');
-        $this->assertContains('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|1', $fingerprints);
-        $this->assertContains('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser|2', $fingerprints);
+        $fingerprints = action_normalizer_chain()->normalize(array_column($grouped, 'fingerprint'));
+
+        $fingerprint1 = IndexableFingerprintVO::fromParts(TestUser::class, '1')->getValue();
+        $fingerprint2 = IndexableFingerprintVO::fromParts(TestUser::class, '2')->getValue();
+
+        $this->assertContains($fingerprint1, $fingerprints);
+        $this->assertContains($fingerprint2, $fingerprints);
     }
 
     public function test_get_tokens_grouped_by_document_with_filters(): void

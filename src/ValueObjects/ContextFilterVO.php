@@ -6,7 +6,7 @@ namespace AndyDefer\LaravelHermes\ValueObjects;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
-use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
 use InvalidArgumentException;
 
 /**
@@ -19,47 +19,49 @@ use InvalidArgumentException;
  * // Simple namespace filter
  * $context = new ContextFilterVO('App.Models.User');
  *
- * // Single cluster
- * $clusters = (new ClusterVOCollection())->add(new ClusterVO('tenant:company_abc@AND'));
- * $context = new ContextFilterVO('App.Models.User', $clusters);
+ * // Single cluster query
+ * $context = new ContextFilterVO(
+ *     'App.Models.User',
+ *     new ClusterQueries(['cluster' => 'tenant=company_abc'])
+ * );
  *
- * // Multiple clusters with operator
- * $clusters = (new ClusterVOCollection())
- *     ->add(new ClusterVO('tenant:company_abc@AND'))
- *     ->add(new ClusterVO('env:production@AND'));
- * $context = new ContextFilterVO('App.Models.User', $clusters, 'AND');
+ * // Multiple cluster queries
+ * $context = new ContextFilterVO(
+ *     'App.Models.User',
+ *     new ClusterQueries([
+ *         'cluster' => 'tenant=company_abc',
+ *         'metadata' => 'env=production'
+ *     ])
+ * );
  *
  * // Clusters only (no namespace)
- * $clusters = (new ClusterVOCollection())->add(new ClusterVO('status:active@AND'));
- * $context = new ContextFilterVO(null, $clusters, 'AND');
+ * $context = new ContextFilterVO(
+ *     null,
+ *     new ClusterQueries(['cluster' => 'status=active'])
+ * );
  */
 final class ContextFilterVO extends AbstractValueObject
 {
     public readonly ?string $namespace;
 
-    public readonly ?ClusterVOCollection $clusters;
-
-    public readonly string $clustersOperator;
+    public readonly ?ClusterQueries $clusterQueries;
 
     /**
-     * @param  string|null  $namespace  The namespace to filter on (e.g., 'App.Models.User')
-     * @param  ClusterVOCollection|null  $clusters  Collection of clusters to filter on
-     * @param  string  $clustersOperator  Operator between clusters: 'AND', 'OR', 'NOT' (default: 'AND')
+     * @param  string|null  $namespace  The namespace to filter on (e.g., 'App\Models\User')
+     * @param  ClusterQueries|null  $clusterQueries  The cluster queries to filter on
      *
-     * @throws InvalidArgumentException If both namespace and clusters are null or empty
+     * @throws InvalidArgumentException If both namespace and clusterQueries are null or empty
      */
     public function __construct(
         ?string $namespace = null,
-        ?ClusterVOCollection $clusters = null,
-        string $clustersOperator = 'AND'
+        ?ClusterQueries $clusterQueries = null
     ) {
-        if ($namespace === null && ($clusters === null || $clusters->isEmpty())) {
-            throw new InvalidArgumentException('At least one of namespace or clusters must be provided');
+        if ($namespace === null && ($clusterQueries === null || $clusterQueries->isEmpty())) {
+            throw new InvalidArgumentException('At least one of namespace or clusterQueries must be provided');
         }
 
         $this->namespace = $namespace;
-        $this->clusters = $clusters;
-        $this->clustersOperator = $clustersOperator;
+        $this->clusterQueries = $clusterQueries;
     }
 
     /**
@@ -71,11 +73,41 @@ final class ContextFilterVO extends AbstractValueObject
     }
 
     /**
-     * Checks if cluster filters are set.
+     * Checks if cluster queries are set.
      */
     public function hasClusters(): bool
     {
-        return $this->clusters !== null && ! $this->clusters->isEmpty();
+        return $this->clusterQueries !== null && ! $this->clusterQueries->isEmpty();
+    }
+
+    /**
+     * Returns the column name for cluster queries.
+     */
+    public function getClusterColumn(): string
+    {
+        return 'cluster';
+    }
+
+    /**
+     * Returns the cluster query expression.
+     *
+     * @return string|null The cluster query, or null if none set
+     */
+    public function getClusterQuery(): ?string
+    {
+        if (! $this->hasClusters()) {
+            return null;
+        }
+
+        $queries = $this->clusterQueries->all();
+
+        // Return the first query if only one column is used
+        if (count($queries) === 1) {
+            return reset($queries);
+        }
+
+        // Combine multiple queries with AND
+        return implode(' & ', $queries);
     }
 
     /**
@@ -94,8 +126,7 @@ final class ContextFilterVO extends AbstractValueObject
         }
 
         if ($this->hasClusters()) {
-            $data['clusters'] = $this->clusters->map(fn ($c) => $c->getValue())->toArray();
-            $data['clusters_operator'] = $this->clustersOperator;
+            $data['cluster_queries'] = $this->clusterQueries->all();
         }
 
         return StrictAssociative::from($data);
@@ -104,19 +135,10 @@ final class ContextFilterVO extends AbstractValueObject
     /**
      * Get clusters as string for backward compatibility.
      *
-     * @deprecated Use getValue() instead
+     * @deprecated Use getClusterQuery() or getValue() instead
      */
     public function getClusterString(): ?string
     {
-        if (! $this->hasClusters()) {
-            return null;
-        }
-
-        $clusterStrings = [];
-        foreach ($this->clusters as $cluster) {
-            $clusterStrings[] = $cluster->getValue();
-        }
-
-        return implode('|', $clusterStrings);
+        return $this->getClusterQuery();
     }
 }

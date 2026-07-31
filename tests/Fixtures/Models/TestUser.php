@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace AndyDefer\LaravelHermes\Tests\Fixtures\Models;
 
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
@@ -42,8 +42,10 @@ class TestUser extends Model implements Indexable
 
     public function getIndexableCluster(): ClusterVO
     {
-        return ClusterVO::make('type', 'user')
-            ->with('status', 'active');
+        return new ClusterVO([
+            'type' => 'user',
+            'status' => 'active',
+        ]);
     }
 
     public function getSearchResultFormat(): StrictAssociative
@@ -62,5 +64,15 @@ class TestUser extends Model implements Indexable
     public function addresses(): MorphMany
     {
         return $this->morphMany(TestAddress::class, 'addressable');
+    }
+
+    public function getMorphClass()
+    {
+        return self::class;
+    }
+
+    public function getKey()
+    {
+        return $this->id;
     }
 }

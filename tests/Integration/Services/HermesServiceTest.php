@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelHermes\Tests\Integration\Services;
 
+use AndyDefer\DomainStructures\Utils\StrictAssociative;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use AndyDefer\LaravelHermes\Collections\CompletionResultRecordCollection;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\Collections\SearchResultRecordCollection;
@@ -17,11 +19,11 @@ use AndyDefer\LaravelHermes\Tests\Fixtures\Models\TestProduct;
 use AndyDefer\LaravelHermes\Tests\Fixtures\Models\TestUser;
 use AndyDefer\LaravelHermes\Tests\IntegrationTestCase;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
-use AndyDefer\LaravelIndexer\Collections\ClusterVOCollection;
 use AndyDefer\LaravelIndexer\Contracts\IndexerInterface;
 use AndyDefer\LaravelIndexer\Services\Composants\IndexableRecordFactory;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use AndyDefer\LaravelIndexer\ValueObjects\SearchQueryVO;
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
+use InvalidArgumentException;
 
 final class HermesServiceTest extends IntegrationTestCase
 {
@@ -37,7 +39,7 @@ final class HermesServiceTest extends IntegrationTestCase
         $this->indexer = $this->app->make(IndexerInterface::class);
     }
 
-    private function createAndIndexUser(int $id, string $name, string $email, string $description = '', string $cluster = 'tenant:company_abc'): void
+    private function createAndIndexUser(int $id, string $name, string $email, string $description = '', array $cluster = ['tenant' => 'company_abc']): void
     {
         $user = TestUser::create([
             'id' => $id,
@@ -52,7 +54,7 @@ final class HermesServiceTest extends IntegrationTestCase
         $this->indexer->index($record);
     }
 
-    private function createAndIndexProduct(int $id, string $name, string $reference, string $description = '', string $cluster = 'tenant:company_abc'): void
+    private function createAndIndexProduct(int $id, string $name, string $reference, string $description = '', array $cluster = ['tenant' => 'company_abc']): void
     {
         $product = TestProduct::create([
             'id' => $id,
@@ -65,6 +67,19 @@ final class HermesServiceTest extends IntegrationTestCase
         $clusterVO = new ClusterVO($cluster);
         $record = IndexableRecordFactory::convert($product, $clusterVO);
         $this->indexer->index($record);
+    }
+
+    private function createContextFilterForNamespace(string $namespace): ContextFilterVO
+    {
+        return new ContextFilterVO($namespace);
+    }
+
+    private function createContextFilterForCluster(array $queries, ?string $namespace = null): ContextFilterVO
+    {
+        return new ContextFilterVO(
+            $namespace,
+            new ClusterQueries($queries)
+        );
     }
 
     // ==================== COMPLETION TESTS ====================
@@ -127,7 +142,7 @@ final class HermesServiceTest extends IntegrationTestCase
         $this->createAndIndexProduct(1, 'Product X', 'REF-001');
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser'));
+        $contexts->add($this->createContextFilterForNamespace(TestUser::class));
 
         $request = CompletionRequestRecord::from([
             'query' => 'joh=name',
@@ -145,14 +160,13 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_complete_with_cluster_filter(): void
     {
-        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
-        $this->createAndIndexUser(2, 'Johnny Cash', 'johnny@example.com', cluster: 'tenant:company_xyz');
-
-        $clusters = new ClusterVOCollection;
-        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: ['tenant' => 'company_abc']);
+        $this->createAndIndexUser(2, 'Johnny Cash', 'johnny@example.com', cluster: ['tenant' => 'company_xyz']);
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO(null, $clusters, 'AND'));
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'tenant=company_abc',
+        ]));
 
         $request = CompletionRequestRecord::from([
             'query' => 'joh=name',
@@ -167,28 +181,46 @@ final class HermesServiceTest extends IntegrationTestCase
         $this->assertEquals('John', $results->first()->original_text);
     }
 
-    public function test_complete_with_multiple_contexts(): void
+    public function test_complete_with_cluster_filter_and_condition_email(): void
     {
-        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
-        $this->createAndIndexProduct(1, 'Product X', 'REF-001', cluster: 'tenant:company_xyz');
-
-        $clustersUser = new ClusterVOCollection;
-        $clustersUser->add(new ClusterVO('tenant:company_abc@AND'));
-
-        $clustersProduct = new ClusterVOCollection;
-        $clustersProduct->add(new ClusterVO('tenant:company_xyz@AND'));
+        $this->createAndIndexUser(1, 'John Doe', 'john.doe@example.com', cluster: ['tenant' => 'company_abc', 'status' => 'active']);
+        $this->createAndIndexUser(2, 'John Smith', 'john.smith@example.com', cluster: ['tenant' => 'company_abc', 'status' => 'inactive']);
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO(
-            'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser',
-            $clustersUser,
-            'AND'
-        ));
-        $contexts->add(new ContextFilterVO(
-            null,
-            $clustersProduct,
-            'AND'
-        ));
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'tenant=company_abc & status=active',
+        ]));
+
+        $request = CompletionRequestRecord::from([
+            'query' => 'john=email',
+            'limit' => 10,
+            'contexts' => $contexts,
+        ]);
+
+        $results = $this->hermes->complete($request);
+
+        $this->assertNotEmpty($results);
+        $this->assertCount(1, $results);
+
+        $first = $results->first();
+        $this->assertNotNull($first->token_id);
+        $this->assertEquals('john.doe@example.com', $first->original_text);
+        $this->assertEquals('email', $first->field);
+        $this->assertGreaterThan(0, $first->similarity);
+    }
+
+    public function test_complete_with_multiple_contexts(): void
+    {
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: ['tenant' => 'company_abc']);
+        $this->createAndIndexProduct(1, 'Product X', 'REF-001', cluster: ['tenant' => 'company_xyz']);
+
+        $contexts = new ContextFilterVOCollection;
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'tenant=company_abc',
+        ], TestUser::class));
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'tenant=company_xyz',
+        ]));
 
         $request = CompletionRequestRecord::from([
             'query' => new SearchQueryVO('joh=name|pro=name'),
@@ -292,7 +324,7 @@ final class HermesServiceTest extends IntegrationTestCase
         $this->createAndIndexUser(1, 'developer', 'dev@example.com', 'developer');
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser'));
+        $contexts->add($this->createContextFilterForNamespace(TestUser::class));
 
         $request = SuggestionRequestRecord::from([
             'query' => new SearchQueryVO('devloper=description'),
@@ -412,7 +444,7 @@ final class HermesServiceTest extends IntegrationTestCase
         $this->createAndIndexProduct(1, 'Product X', 'REF-001');
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser'));
+        $contexts->add($this->createContextFilterForNamespace(TestUser::class));
 
         $request = SearchRequestRecord::from([
             'query' => new SearchQueryVO('john=name'),
@@ -431,14 +463,13 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_search_with_cluster_filter(): void
     {
-        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
-        $this->createAndIndexUser(2, 'Jane Smith', 'jane@example.com', cluster: 'tenant:company_xyz');
-
-        $clusters = new ClusterVOCollection;
-        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: ['tenant' => 'company_abc']);
+        $this->createAndIndexUser(2, 'Jane Smith', 'jane@example.com', cluster: ['tenant' => 'company_xyz']);
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO(null, $clusters, 'AND'));
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'tenant=company_abc',
+        ]));
 
         $request = SearchRequestRecord::from([
             'query' => new SearchQueryVO('john=name|jane=name'),
@@ -456,51 +487,18 @@ final class HermesServiceTest extends IntegrationTestCase
         }
     }
 
-    public function test_search_with_cluster_filter_or(): void
-    {
-        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
-        $this->createAndIndexUser(2, 'Jane Smith', 'jane@example.com', cluster: 'tenant:company_xyz');
-
-        $clusters = new ClusterVOCollection;
-        $clusters->add(new ClusterVO('tenant:company_abc@OR'));
-
-        $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO(null, $clusters, 'OR'));
-
-        $request = SearchRequestRecord::from([
-            'query' => new SearchQueryVO('john=name|jane=name'),
-            'limit' => 20,
-            'contexts' => $contexts,
-            'min_similarity' => 0.3,
-        ]);
-
-        $results = $this->hermes->search($request);
-
-        $this->assertNotEmpty($results);
-    }
-
     public function test_search_with_multiple_contexts(): void
     {
-        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: 'tenant:company_abc');
-        $this->createAndIndexProduct(1, 'Product X', 'REF-001', cluster: 'tenant:company_xyz');
-
-        $clustersUser = new ClusterVOCollection;
-        $clustersUser->add(new ClusterVO('tenant:company_abc@AND'));
-
-        $clustersProduct = new ClusterVOCollection;
-        $clustersProduct->add(new ClusterVO('tenant:company_xyz@AND'));
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: ['tenant' => 'company_abc']);
+        $this->createAndIndexProduct(1, 'Product X', 'REF-001', cluster: ['tenant' => 'company_xyz']);
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO(
-            'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser',
-            $clustersUser,
-            'AND'
-        ));
-        $contexts->add(new ContextFilterVO(
-            null,
-            $clustersProduct,
-            'AND'
-        ));
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'tenant=company_abc',
+        ], TestUser::class));
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'tenant=company_xyz',
+        ]));
 
         $request = SearchRequestRecord::from([
             'query' => new SearchQueryVO('john=name|product=name'),
@@ -582,14 +580,13 @@ final class HermesServiceTest extends IntegrationTestCase
         $this->createAndIndexProduct(1, 'Laptop Pro', 'REF-001', 'High performance laptop');
 
         $contexts = new ContextFilterVOCollection;
-        $contexts->add(new ContextFilterVO('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser'));
+        $contexts->add($this->createContextFilterForNamespace(TestUser::class));
 
         $request = SearchRequestRecord::from([
             'query' => new SearchQueryVO('john=name,email|developer=description'),
             'limit' => 20,
             'contexts' => $contexts,
             'min_similarity' => 0.3,
-            'use_phonetic' => true,
         ]);
 
         $results = $this->hermes->search($request);
@@ -604,15 +601,15 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_context_filter_vo_throws_exception_when_empty(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('At least one of namespace or clusters must be provided');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('At least one of namespace or clusterQueries must be provided');
 
         new ContextFilterVO(null, null);
     }
 
     public function test_context_filter_vo_has_namespace(): void
     {
-        $namespace = 'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser';
+        $namespace = TestUser::class;
 
         $context = new ContextFilterVO($namespace, null);
 
@@ -623,49 +620,79 @@ final class HermesServiceTest extends IntegrationTestCase
 
     public function test_context_filter_vo_has_clusters(): void
     {
-        $clusters = new ClusterVOCollection;
-        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+        $clusterQueries = new ClusterQueries([
+            'cluster' => 'tenant=company_abc',
+        ]);
 
-        $context = new ContextFilterVO(null, $clusters, 'AND');
+        $context = new ContextFilterVO(null, $clusterQueries);
 
         $this->assertFalse($context->hasNamespace());
         $this->assertTrue($context->hasClusters());
-        $this->assertEquals($clusters, $context->clusters);
-        $this->assertEquals('AND', $context->clustersOperator);
+        $this->assertEquals($clusterQueries, $context->clusterQueries);
     }
 
     public function test_context_filter_vo_has_both(): void
     {
-        $namespace = 'AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser';
-        $clusters = new ClusterVOCollection;
-        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+        $namespace = TestUser::class;
+        $clusterQueries = new ClusterQueries([
+            'cluster' => 'tenant=company_abc',
+        ]);
 
-        $context = new ContextFilterVO($namespace, $clusters, 'AND');
+        $context = new ContextFilterVO($namespace, $clusterQueries);
 
         $this->assertTrue($context->hasNamespace());
         $this->assertTrue($context->hasClusters());
         $this->assertEquals($namespace, $context->namespace);
-        $this->assertEquals($clusters, $context->clusters);
-        $this->assertEquals('AND', $context->clustersOperator);
+        $this->assertEquals($clusterQueries, $context->clusterQueries);
     }
 
-    public function test_context_filter_vo_with_clusters_or_operator(): void
+    public function test_context_filter_vo_get_cluster_query(): void
     {
-        $clusters = new ClusterVOCollection;
-        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+        $clusterQueries = new ClusterQueries([
+            'cluster' => 'tenant=company_abc',
+        ]);
 
-        $context = new ContextFilterVO(null, $clusters, 'OR');
+        $context = new ContextFilterVO(null, $clusterQueries);
 
-        $this->assertEquals('OR', $context->clustersOperator);
+        $this->assertEquals('tenant=company_abc', $context->getClusterQuery());
     }
 
-    public function test_context_filter_vo_with_clusters_not_operator(): void
+    public function test_context_filter_vo_get_cluster_query_with_multiple(): void
     {
-        $clusters = new ClusterVOCollection;
-        $clusters->add(new ClusterVO('tenant:company_abc@AND'));
+        $clusterQueries = new ClusterQueries([
+            'cluster' => 'tenant=company_abc',
+            'metadata' => 'status=active',
+        ]);
 
-        $context = new ContextFilterVO(null, $clusters, 'NOT');
+        $context = new ContextFilterVO(null, $clusterQueries);
 
-        $this->assertEquals('NOT', $context->clustersOperator);
+        $this->assertEquals('tenant=company_abc & status=active', $context->getClusterQuery());
+    }
+
+    public function test_context_filter_vo_get_cluster_column(): void
+    {
+        $clusterQueries = new ClusterQueries([
+            'cluster' => 'tenant=company_abc',
+        ]);
+
+        $context = new ContextFilterVO(null, $clusterQueries);
+
+        $this->assertEquals('cluster', $context->getClusterColumn());
+    }
+
+    public function test_context_filter_vo_get_value(): void
+    {
+        $namespace = TestUser::class;
+        $clusterQueries = new ClusterQueries([
+            'cluster' => 'tenant=company_abc',
+        ]);
+
+        $context = new ContextFilterVO($namespace, $clusterQueries);
+
+        $value = $context->getValue();
+
+        $this->assertInstanceOf(StrictAssociative::class, $value);
+        $this->assertEquals($namespace, $value['namespace']);
+        $this->assertEquals(['cluster' => 'tenant=company_abc'], $value['cluster_queries']->toArray());
     }
 }

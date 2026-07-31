@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace AndyDefer\LaravelHermes\Tests\Fixtures\Models;
 
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
 
 class TestComplexUser extends Model implements Indexable
@@ -44,9 +44,11 @@ class TestComplexUser extends Model implements Indexable
 
     public function getIndexableCluster(): ClusterVO
     {
-        return ClusterVO::make('type', 'complex_user')
-            ->with('status', $this->is_active ? 'active' : 'inactive')
-            ->whenNotEmpty('tags', implode(',', $this->tags ?? []));
+        return new ClusterVO([
+            'type' => 'complex_user',
+            'status' => $this->is_active,
+            'tags' => $this->tags,
+        ]);
     }
 
     public function getSearchResultFormat(): StrictAssociative

@@ -15,7 +15,7 @@ use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 final class CompletionResultRecord extends AbstractRecord
 {
     public function __construct(
-        public readonly string $token_id,
+        public readonly ?string $token_id,
         public readonly string $document_id,
         public readonly string $token,
         public readonly string $original_text,

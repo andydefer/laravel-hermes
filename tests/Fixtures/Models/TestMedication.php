@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace AndyDefer\LaravelHermes\Tests\Fixtures\Models;
 
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
@@ -55,8 +55,12 @@ class TestMedication extends Model implements Indexable
 
     public function getIndexableCluster(): ClusterVO
     {
-        return ClusterVO::make('type', 'medication')
-            ->with('status', 'active');
+        return new ClusterVO([
+            'type' => 'medication',
+            'status' => 'active',
+            'prescription_required' => $this->is_prescription_required,
+            'form' => $this->form,
+        ]);
     }
 
     public function getSearchResultFormat(): StrictAssociative
@@ -75,5 +79,15 @@ class TestMedication extends Model implements Indexable
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
         ]);
+    }
+
+    public function getMorphClass()
+    {
+        return self::class;
+    }
+
+    public function getKey()
+    {
+        return $this->id;
     }
 }

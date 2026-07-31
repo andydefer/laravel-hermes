@@ -8,20 +8,24 @@ use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\Contracts\Repositories\HermesRepositoryInterface;
 use AndyDefer\LaravelIndexer\Repositories\IndexedTokenRepository;
-use AndyDefer\LaravelIndexer\Services\Composants\ClusterFilterApplier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
+/**
+ * Repository for Hermes token operations.
+ *
+ * Provides methods to search, retrieve, and count tokens by n-grams
+ * with optional context filters and field restrictions.
+ */
 final class HermesRepository implements HermesRepositoryInterface
 {
-    private ClusterFilterApplier $clusterFilterApplier;
-
     public function __construct(
         private readonly IndexedTokenRepository $tokenRepository,
-    ) {
-        $this->clusterFilterApplier = new ClusterFilterApplier;
-    }
+    ) {}
 
+    /**
+     * {@inheritDoc}
+     */
     public function findTokensByNgrams(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -44,6 +48,9 @@ final class HermesRepository implements HermesRepositoryInterface
         return $query->get();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getAllTokensByNgrams(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -59,6 +66,9 @@ final class HermesRepository implements HermesRepositoryInterface
         return $query->get();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getTokensGroupedByDocument(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -99,6 +109,9 @@ final class HermesRepository implements HermesRepositoryInterface
         return $grouped;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countTokensByNgrams(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -113,6 +126,13 @@ final class HermesRepository implements HermesRepositoryInterface
         return $query->count('id');
     }
 
+    /**
+     * Applies field and context filters to the query.
+     *
+     * @param  Builder  $query  The query builder
+     * @param  ContextFilterVOCollection|null  $contexts  The context filters to apply
+     * @param  StringTypedCollection|null  $fields  The fields to filter by
+     */
     private function applyFilters(Builder $query, ?ContextFilterVOCollection $contexts, ?StringTypedCollection $fields): void
     {
         if ($fields !== null && ! $fields->isEmpty()) {
@@ -133,11 +153,9 @@ final class HermesRepository implements HermesRepositoryInterface
                     }
 
                     if ($context->hasClusters()) {
-                        $this->clusterFilterApplier->applyClustersOnRelation(
-                            $filterQuery,
-                            $context->clusters,
-                            $context->clustersOperator
-                        );
+                        $filterQuery->whereHas('document', function ($documentQuery) use ($context) {
+                            $documentQuery->whereCluster($context->getClusterColumn(), $context->getClusterQuery());
+                        });
                     }
                 });
             }

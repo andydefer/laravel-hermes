@@ -76,7 +76,7 @@ final class HermesService implements HermesInterface
 
             foreach ($tokens as $token) {
                 $similarity = $this->calculateSimilarity($ngram, $token->original_text);
-                $key = $token->id.'|'.$token->document_id;
+                $key = $token->document_id;
 
                 if (! isset($allResults[$key])) {
                     $allResults[$key] = [
@@ -140,7 +140,7 @@ final class HermesService implements HermesInterface
                     continue;
                 }
 
-                $key = $token->id.'|'.$token->document_id;
+                $key = $token->document_id;
 
                 if (! isset($allResults[$key])) {
                     $allResults[$key] = [

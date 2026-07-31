@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace AndyDefer\LaravelHermes\Tests\Fixtures\Models;
 
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
-use AndyDefer\LaravelIndexer\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
@@ -54,10 +54,12 @@ class TestDoctor extends Model implements Indexable
 
     public function getIndexableCluster(): ClusterVO
     {
-        return ClusterVO::make('type', 'doctor')
-            ->with('status', $this->is_active ? 'active' : 'inactive')
-            ->whenNotEmpty('specialty', $this->specialty)
-            ->whenNotEmpty('city', $this->city);
+        return new ClusterVO([
+            'type' => 'doctor',
+            'status' => $this->is_active,
+            'specialty' => $this->specialty,
+            'city' => $this->city,
+        ]);
     }
 
     public function getSearchResultFormat(): StrictAssociative
