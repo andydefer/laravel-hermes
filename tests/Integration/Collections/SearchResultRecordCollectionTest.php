@@ -123,7 +123,7 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
             $this->createTestRecord('AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestDoctor|3')
         );
 
-        $ids = $this->collection->getIds();
+        $ids = $this->collection->getEntityIds();
 
         $this->assertCount(3, $ids);
         $this->assertContains('1', $ids);
@@ -290,7 +290,7 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
         $groups = $this->collection->groupByNamespace();
         $userGroup = $groups['AndyDefer.LaravelHermes.Tests.Fixtures.Models.TestUser'];
 
-        $ids = $userGroup->getIds();
+        $ids = $userGroup->getEntityIds();
         $this->assertCount(2, $ids);
         $this->assertContains('1', $ids);
         $this->assertContains('2', $ids);

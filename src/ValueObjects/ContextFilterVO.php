@@ -131,14 +131,4 @@ final class ContextFilterVO extends AbstractValueObject
 
         return StrictAssociative::from($data);
     }
-
-    /**
-     * Get clusters as string for backward compatibility.
-     *
-     * @deprecated Use getClusterQuery() or getValue() instead
-     */
-    public function getClusterString(): ?string
-    {
-        return $this->getClusterQuery();
-    }
 }
