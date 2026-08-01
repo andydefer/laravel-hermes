@@ -31,7 +31,7 @@ final class SearchResultRecordCollectionTest extends IntegrationTestCase
 
     private function getFingerprintForModel(Model $model): string
     {
-        return str_replace('\\', '.', get_class($model)).'|'.$model->id;
+        return get_class($model).'|'.$model->id;
     }
 
     private function createTestRecord(

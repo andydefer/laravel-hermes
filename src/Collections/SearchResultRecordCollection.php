@@ -5,29 +5,12 @@ declare(strict_types=1);
 namespace AndyDefer\LaravelHermes\Collections;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractTypedCollection;
-use AndyDefer\DomainStructures\Collections\Core\TypedCollection;
 use AndyDefer\LaravelHermes\Records\SearchResultRecord;
 use AndyDefer\LaravelIndexer\Contracts\Indexable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 
-/**
- * Collection of search result records returned from search operations.
- *
- * Provides type-safe collection operations for managing and querying
- * search results, including filtering by field, namespace, similarity,
- * and retrieving model instances.
- *
- * @method SearchResultRecord|null first()
- * @method SearchResultRecord|null last()
- * @method SearchResultRecord|null find(callable $callback)
- * @method self filter(callable $callback)
- * @method self mapPreserveType(callable $callback)
- * @method TypedCollection map(callable $callback)
- * @method self merge(TypedCollection $collection)
- * @method self unique(?callable $callback = null)
- */
 final class SearchResultRecordCollection extends AbstractTypedCollection
 {
     /**
@@ -216,7 +199,6 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
     public function getModelInstances(array $with = []): Collection
     {
         $groupedIds = $this->getGroupedIdsByClass();
-
         $models = $this->loadModels($groupedIds, $with);
 
         return $this->buildOrderedResult($models);
@@ -239,7 +221,8 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
             }
 
             [$namespace, $id] = $parts;
-            $class = $this->normalizeClass($namespace);
+
+            $class = $namespace;
 
             if ($class === null) {
                 continue;
@@ -332,7 +315,8 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
      */
     private function extractNamespace(string $fingerprint): ?string
     {
-        $parts = explode(self::FINGERPRINT_DELIMITER, $fingerprint);
+        $cleaned = $this->cleanFingerprint($fingerprint);
+        $parts = explode(self::FINGERPRINT_DELIMITER, $cleaned);
 
         return count($parts) === 2 ? $parts[0] : null;
     }
@@ -345,7 +329,8 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
      */
     private function extractId(string $fingerprint): ?string
     {
-        $parts = explode(self::FINGERPRINT_DELIMITER, $fingerprint);
+        $cleaned = $this->cleanFingerprint($fingerprint);
+        $parts = explode(self::FINGERPRINT_DELIMITER, $cleaned);
 
         return count($parts) === 2 ? $parts[1] : null;
     }
@@ -358,7 +343,9 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
      */
     private function splitFingerprint(string $fingerprint): ?array
     {
-        $parts = explode(self::FINGERPRINT_DELIMITER, $fingerprint);
+        $cleaned = $this->cleanFingerprint($fingerprint);
+
+        $parts = explode(self::FINGERPRINT_DELIMITER, $cleaned);
 
         if (count($parts) !== 2) {
             return null;
@@ -368,20 +355,20 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
     }
 
     /**
-     * Normalizes a namespace to a fully qualified class name.
+     * Clean a fingerprint string by removing surrounding quotes.
      *
-     * @param  string  $namespace  The namespace string
-     * @return string|null The normalized class name, or null if class doesn't exist
+     * @param  string  $fingerprint  The fingerprint string
+     * @return string The cleaned fingerprint
      */
-    private function normalizeClass(string $namespace): ?string
+    private function cleanFingerprint(string $fingerprint): string
     {
-        $class = str_replace('.', '\\', $namespace);
-
-        if (! class_exists($class)) {
-            return null;
+        // ✅ Si c'est du JSON valide, le décoder
+        if (str_starts_with($fingerprint, '"') && str_ends_with($fingerprint, '"')) {
+            return json_decode($fingerprint);
         }
 
-        return $class;
+        // ✅ Sinon, retourner tel quel
+        return $fingerprint;
     }
 
     /**
@@ -432,13 +419,8 @@ final class SearchResultRecordCollection extends AbstractTypedCollection
             }
 
             [$namespace, $id] = $parts;
-            $class = $this->normalizeClass($namespace);
 
-            if ($class === null) {
-                continue;
-            }
-
-            $key = $class.self::FINGERPRINT_DELIMITER.$id;
+            $key = $namespace.self::FINGERPRINT_DELIMITER.$id;
 
             if (isset($models[$key])) {
                 $result[] = $models[$key];
