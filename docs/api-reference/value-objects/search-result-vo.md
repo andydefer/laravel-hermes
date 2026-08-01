@@ -44,14 +44,14 @@ $vo = new SearchResultVO(
 
 Retourne le fingerprint du résultat de recherche.
 
-**Retourne :** `string` - Le fingerprint (ex: 'App.Models.User|1')
+**Retourne :** `string` - Le fingerprint (ex: 'App\\Models\\User|1')
 
 **Exemple :**
 ```php
 <?php
 
 $fingerprint = $vo->getFingerprint();
-// 'App.Models.User|1'
+// 'App\\Models\\User|1'
 ```
 
 ---
@@ -284,7 +284,7 @@ use AndyDefer\LaravelHermes\Collections\SearchResultVOCollection;
 // Création d'un record (simulé)
 $record = new SearchResultRecord(
     document_id: 'doc_123',
-    fingerprint: 'App.Models.User|42',
+    fingerprint: 'App\\Models\\User|42',
     data: StrictAssociative::from([
         'name' => 'John Doe',
         'email' => 'john@example.com',

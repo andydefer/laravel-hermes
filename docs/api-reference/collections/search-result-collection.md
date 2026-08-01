@@ -46,7 +46,7 @@ Extrait tous les fingerprints de la collection.
 <?php
 
 $fingerprints = $collection->getFingerprints();
-// ['App.Models.User|1', 'App.Models.Product|42']
+// ['App\\Models\\User|1', 'App\\Models\\Product|42']
 ```
 
 ---
@@ -62,7 +62,7 @@ Extrait tous les namespaces uniques de la collection.
 <?php
 
 $namespaces = $collection->getNamespaces();
-// ['App.Models.User', 'App.Models.Product']
+// ['App\\Models\\User', 'App\\Models\\Product']
 ```
 
 ---
@@ -425,7 +425,7 @@ $collection = new SearchResultRecordCollection();
 // Ajout de résultats
 $collection->add(new SearchResultRecord(
     document_id: 'doc_1',
-    fingerprint: 'App.Models.User|1',
+    fingerprint: 'App\\Models\\User|1',
     data: StrictAssociative::from(['name' => 'John Doe', 'email' => 'john@test.com']),
     matches: new MatchRecordCollection(),
     similarity: 0.95
@@ -433,7 +433,7 @@ $collection->add(new SearchResultRecord(
 
 $collection->add(new SearchResultRecord(
     document_id: 'doc_2',
-    fingerprint: 'App.Models.User|2',
+    fingerprint: 'App\\Models\\User|2',
     data: StrictAssociative::from(['name' => 'Jane Smith', 'email' => 'jane@test.com']),
     matches: new MatchRecordCollection(),
     similarity: 0.85
@@ -441,7 +441,7 @@ $collection->add(new SearchResultRecord(
 
 $collection->add(new SearchResultRecord(
     document_id: 'doc_3',
-    fingerprint: 'App.Models.Product|42',
+    fingerprint: 'App\\Models\\Product|42',
     data: StrictAssociative::from(['name' => 'Laptop Pro', 'price' => 1299.99]),
     matches: new MatchRecordCollection(),
     similarity: 0.75
@@ -457,7 +457,7 @@ echo "IDs : " . implode(', ', $ids) . "\n";
 // Filtrage des résultats de qualité
 $qualityResults = $collection
     ->filterByMinSimilarity(0.8)
-    ->filterByNamespace('App.Models.User');
+    ->filterByNamespace('App\\Models\\User');
 
 echo "Utilisateurs pertinents : " . $qualityResults->count() . "\n";
 

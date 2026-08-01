@@ -45,6 +45,16 @@ class TestUser extends Model implements Indexable
         return new ClusterVO([
             'type' => 'user',
             'status' => 'active',
+            'profile' => [
+                'is_verified' => true,
+                'years_experience' => 5,
+            ],
+            'settings' => [
+                'preferences' => [
+                    'theme' => 'dark',
+                    'notifications' => true,
+                ],
+            ],
         ]);
     }
 

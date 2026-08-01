@@ -51,6 +51,7 @@ final class HermesService implements HermesInterface
         $ngrams = $request->query->getNgrams();
 
         if (empty($ngrams)) {
+
             return new CompletionResultRecordCollection;
         }
 
@@ -64,6 +65,7 @@ final class HermesService implements HermesInterface
             $termNgrams = $this->generateTermNgrams($ngram);
 
             if (empty($termNgrams)) {
+
                 continue;
             }
 

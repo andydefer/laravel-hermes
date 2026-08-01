@@ -241,7 +241,7 @@ public function getIndexableCluster(): ClusterVO
         'tenant' => $this->tenant_id,
         'country' => $this->country,
         'city' => $this->city,
-        'verified' => $this->email_verified_at !== null ? 'true' : 'false',
+        'verified' => $this->email_verified_at !== null ? 'yes' : 'no',
     ]);
 }
 ```
@@ -298,7 +298,7 @@ use AndyDefer\Repository\ValueObjects\ClusterQueries;
 // Filtrer les utilisateurs actifs du tenant company_abc
 $contexts = new ContextFilterVOCollection();
 $contexts->add(new ContextFilterVO(
-    'App.Models.User',
+    'App\\Models\\User',
     new ClusterQueries(['cluster' => 'status=active & tenant=company_abc'])
 ));
 
@@ -370,7 +370,7 @@ $results = $this->hermes->suggest($request);
 ```php
 $contexts = new ContextFilterVOCollection();
 $contexts->add(new ContextFilterVO(
-    'App.Models.Doctor',
+    'App\\Models\\Doctor',
     new ClusterQueries(['cluster' => 'status=active & specialty=cardiology'])
 ));
 
@@ -420,7 +420,7 @@ foreach ($results as $result) {
 ```php
 $contexts = new ContextFilterVOCollection();
 $contexts->add(new ContextFilterVO(
-    'App.Models.User',
+    'App\\Models\\User',
     new ClusterQueries(['cluster' => 'tenant=company_abc'])
 ));
 
@@ -441,11 +441,11 @@ $results = $this->hermes->search($request);
 // Users de company_abc OU Products de company_xyz
 $contexts = new ContextFilterVOCollection();
 $contexts->add(new ContextFilterVO(
-    'App.Models.User',
+    'App\\Models\\User',
     new ClusterQueries(['cluster' => 'tenant=company_abc'])
 ));
 $contexts->add(new ContextFilterVO(
-    'App.Models.Product',
+    'App\\Models\\Product',
     new ClusterQueries(['cluster' => 'tenant=company_xyz'])
 ));
 
@@ -521,7 +521,7 @@ use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
 use AndyDefer\Repository\ValueObjects\ClusterQueries;
 
 // Uniquement namespace
-$context = new ContextFilterVO('App.Models.User');
+$context = new ContextFilterVO('App\\Models\\User');
 
 // Uniquement clusters
 $context = new ContextFilterVO(
@@ -531,7 +531,7 @@ $context = new ContextFilterVO(
 
 // Les deux (ET)
 $context = new ContextFilterVO(
-    'App.Models.User',
+    'App\\Models\\User',
     new ClusterQueries(['cluster' => 'tenant=company_abc'])
 );
 ```
@@ -544,21 +544,21 @@ use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 $contexts = new ContextFilterVOCollection();
 
 // Ajout unique
-$contexts->add(new ContextFilterVO('App.Models.User'));
+$contexts->add(new ContextFilterVO('App\\Models\\User'));
 
 // Ajout multiple
 $contexts->add(
-    new ContextFilterVO('App.Models.User'),
-    new ContextFilterVO('App.Models.Product'),
+    new ContextFilterVO('App\\Models\\User'),
+    new ContextFilterVO('App\\Models\\Product'),
     new ContextFilterVO(null, new ClusterQueries(['cluster' => 'status=active']))
 );
 
 // Extraction des données
-$namespaces = $contexts->getNamespaces();      // ['App.Models.User', 'App.Models.Product']
+$namespaces = $contexts->getNamespaces();      // ['App\\Models\\User', 'App\\Models\\Product']
 $queries = $contexts->getClusterQueries();     // ['status=active']
 
 // Filtrage
-$userContexts = $contexts->filterByNamespace('App.Models.User');
+$userContexts = $contexts->filterByNamespace('App\\Models\\User');
 $activeContexts = $contexts->filterByClusterQuery('status=active');
 
 // Vérifications
@@ -572,8 +572,8 @@ Les contextes sont combinés avec un **OU logique** :
 
 ```php
 $contexts = new ContextFilterVOCollection();
-$contexts->add(new ContextFilterVO('App.Models.User'));
-$contexts->add(new ContextFilterVO('App.Models.Product'));
+$contexts->add(new ContextFilterVO('App\\Models\\User'));
+$contexts->add(new ContextFilterVO('App\\Models\\Product'));
 
 // Résultat : (Users) OU (Products)
 ```
@@ -589,11 +589,11 @@ $contexts->add(new ContextFilterVO('App.Models.Product'));
 // ET "john" dans name OU "developer" dans description
 $contexts = new ContextFilterVOCollection();
 $contexts->add(new ContextFilterVO(
-    'App.Models.User',
+    'App\\Models\\User',
     new ClusterQueries(['cluster' => 'tenant=company_abc'])
 ));
 $contexts->add(new ContextFilterVO(
-    'App.Models.Product',
+    'App\\Models\\Product',
     new ClusterQueries(['cluster' => 'tenant=company_xyz'])
 ));
 
@@ -614,7 +614,7 @@ $results = $this->hermes->search($request);
 // Compléter "john" dans name des utilisateurs actifs de company_abc
 $contexts = new ContextFilterVOCollection();
 $contexts->add(new ContextFilterVO(
-    'App.Models.User',
+    'App\\Models\\User',
     new ClusterQueries(['cluster' => 'tenant=company_abc & status=active'])
 ));
 
@@ -633,7 +633,7 @@ $results = $this->hermes->complete($request);
 // Suggestions pour les médecins en RDC avec spécialité cardiologie
 $contexts = new ContextFilterVOCollection();
 $contexts->add(new ContextFilterVO(
-    'App.Models.Doctor',
+    'App\\Models\\Doctor',
     new ClusterQueries(['cluster' => 'country=RDC & specialty=cardiology'])
 ));
 
@@ -670,7 +670,7 @@ $tokens = $repository->findTokensByNgrams($ngrams, limit: 10);
 // Avec filtres de contexte
 $contexts = new ContextFilterVOCollection();
 $contexts->add(new ContextFilterVO(
-    'App.Models.User',
+    'App\\Models\\User',
     new ClusterQueries(['cluster' => 'tenant=company_abc'])
 ));
 
@@ -748,8 +748,8 @@ $results = $this->hermes->search($request);
 
 // Extraction
 $docIds = $results->getDocumentIds();        // ['doc_1', 'doc_2']
-$fingerprints = $results->getFingerprints();  // ['App.Models.User|1', ...]
-$namespaces = $results->getNamespaces();      // ['App.Models.User', ...]
+$fingerprints = $results->getFingerprints();  // ['App\\Models\\User|1', ...]
+$namespaces = $results->getNamespaces();      // ['App\\Models\\User', ...]
 $ids = $results->getEntityIds();              // ['1', '2']
 $data = $results->getData();                  // Tableau des données
 $matches = $results->getMatches();            // Tableau des matchs
@@ -757,15 +757,15 @@ $matches = $results->getMatches();            // Tableau des matchs
 // Filtrage
 $bySimilarity = $results->filterByMinSimilarity(0.5);
 $byField = $results->filterByField('name');
-$byNamespace = $results->filterByNamespace('App.Models.User');
-$byNamespaces = $results->filterByNamespaces(['App.Models.User', 'App.Models.Product']);
+$byNamespace = $results->filterByNamespace('App\\Models\\User');
+$byNamespaces = $results->filterByNamespaces(['App\\Models\\User', 'App\\Models\\Product']);
 
 // Chargement des modèles Eloquent
 $models = $results->getModelInstances(['profile', 'profile.specialty']);
 
 // Vérifications
-$hasUser = $results->belongsToNamespace('App.Models.User');
-$hasUserOrProduct = $results->belongsToAnyNamespace(['App.Models.User', 'App.Models.Product']);
+$hasUser = $results->belongsToNamespace('App\\Models\\User');
+$hasUserOrProduct = $results->belongsToAnyNamespace(['App\\Models\\User', 'App\\Models\\Product']);
 
 // Regroupement
 $byNamespace = $results->groupByNamespace();
@@ -786,13 +786,13 @@ $dataObjects = $vos->getDatas();             // DataCollection
 $fingerprints = $vos->getFingerprints();     // StringTypedCollection
 $matches = $vos->getMatches();               // MatchRecordCollection
 $scores = $vos->getSimilarities();           // [0.95, 0.85]
-$namespaces = $vos->getNamespaces();         // ['App.Models.User', ...]
+$namespaces = $vos->getNamespaces();         // ['App\\Models\\User', ...]
 $dataArrays = $vos->getDataArrays();         // Tableau des données
 
 // Filtrage
 $bySimilarity = $vos->filterByMinSimilarity(0.5);
-$byNamespace = $vos->filterByNamespace('App.Models.User');
-$byNamespaces = $vos->filterByNamespaces(['App.Models.User', 'App.Models.Product']);
+$byNamespace = $vos->filterByNamespace('App\\Models\\User');
+$byNamespaces = $vos->filterByNamespaces(['App\\Models\\User', 'App\\Models\\Product']);
 
 // Meilleur résultat
 $best = $vos->getBestMatch();
@@ -990,7 +990,7 @@ class UserSearchService
     {
         $contexts = new ContextFilterVOCollection();
         $contexts->add(new ContextFilterVO(
-            'App.Models.Doctor',
+            'App\\Models\\Doctor',
             new ClusterQueries([
                 'cluster' => "city=$city & specialty=$specialty & status=active"
             ])
@@ -1041,7 +1041,7 @@ class ProductSearchService
             $conditions[] = "price<={$filters['max_price']}";
         }
         if (isset($filters['in_stock'])) {
-            $conditions[] = "in_stock=" . ($filters['in_stock'] ? 'true' : 'false');
+            $conditions[] = "in_stock=" . ($filters['in_stock'] ? 'yes' : 'no');
         }
 
         $clusterQuery = implode(' & ', $conditions);
@@ -1186,7 +1186,7 @@ $request = SearchRequestRecord::from([
 
 // ✅ Recommandé - Utiliser les contextes pour filtrer
 $contexts->add(new ContextFilterVO(
-    'App.Models.User',
+    'App\\Models\\User',
     new ClusterQueries(['cluster' => 'status=active'])
 ));
 
@@ -1227,21 +1227,21 @@ $request = CompletionRequestRecord::from([
 ```php
 // ✅ Recommandé - Contextes simples
 $contexts->add(new ContextFilterVO(
-    'App.Models.User',
+    'App\\Models\\User',
     new ClusterQueries(['cluster' => 'tenant=company_abc'])
 ));
 
 // ✅ Recommandé - Contextes avec AND
 $contexts->add(new ContextFilterVO(
-    'App.Models.User',
+    'App\\Models\\User',
     new ClusterQueries(['cluster' => 'tenant=company_abc & status=active'])
 ));
 
 // ⚠️ À éviter - Trop de contextes OR (performance)
-$contexts->add(new ContextFilterVO('App.Models.User'));
-$contexts->add(new ContextFilterVO('App.Models.Product'));
-$contexts->add(new ContextFilterVO('App.Models.Order'));
-$contexts->add(new ContextFilterVO('App.Models.Invoice'));
+$contexts->add(new ContextFilterVO('App\\Models\\User'));
+$contexts->add(new ContextFilterVO('App\\Models\\Product'));
+$contexts->add(new ContextFilterVO('App\\Models\\Order'));
+$contexts->add(new ContextFilterVO('App\\Models\\Invoice'));
 ```
 
 ### 16.4 Configuration recommandée

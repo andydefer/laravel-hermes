@@ -95,7 +95,7 @@ final class FrenchSimilarityConfig implements SimilarityConfigInterface
 ```php
 // Un contexte = namespace + cluster (les deux sont optionnels)
 [
-    'namespace' => 'App.Models.User',  // Optionnel
+    'namespace' => 'App\\Models\\User',  // Optionnel
     'cluster' => 'tenant:company_abc'   // Optionnel
 ]
 ```
@@ -110,7 +110,7 @@ final class FrenchSimilarityConfig implements SimilarityConfigInterface
 // 1. Un seul contexte (namespace ET cluster)
 'contexts' => [
     [
-        'namespace' => 'App.Models.User',
+        'namespace' => 'App\\Models\\User',
         'cluster' => 'tenant:company_abc'
     ]
 ]
@@ -118,11 +118,11 @@ final class FrenchSimilarityConfig implements SimilarityConfigInterface
 // 2. Plusieurs contextes (OU entre les contextes)
 'contexts' => [
     [
-        'namespace' => 'App.Models.User',
+        'namespace' => 'App\\Models\\User',
         'cluster' => 'tenant:company_abc'
     ],
     [
-        'namespace' => 'App.Models.Product',
+        'namespace' => 'App\\Models\\Product',
         'cluster' => 'tenant:company_xyz'
     ]
 ]
@@ -157,7 +157,7 @@ $request = CompletionRequestRecord::from([
     'fields' => ['name', 'email'],
     'contexts' => [
         [
-            'namespace' => 'App.Models.User',
+            'namespace' => 'App\\Models\\User',
             'cluster' => 'tenant:company_abc'
         ]
     ]
@@ -224,7 +224,7 @@ $request = SuggestionRequestRecord::from([
     'fields' => ['skills', 'bio'],
     'contexts' => [
         [
-            'namespace' => 'App.Models.User',
+            'namespace' => 'App\\Models\\User',
             'cluster' => 'tenant:company_abc'
         ]
     ],
@@ -281,7 +281,7 @@ $request = SearchRequestRecord::from([
     'fields' => ['name', 'email', 'bio'],
     'contexts' => [
         [
-            'namespace' => 'App.Models.User',
+            'namespace' => 'App\\Models\\User',
             'cluster' => 'tenant:company_abc'
         ]
     ],
@@ -298,7 +298,7 @@ $results = $hermes->search($request);
 [
     SearchResultRecord::from([
         'document_id' => 'doc-456',
-        'fingerprint' => 'App.Models.User|123',
+        'fingerprint' => 'App\\Models\\User|123',
         'data' => StrictAssociative::from([
             'name' => 'John Doe',
             'email' => 'john@example.com',
@@ -320,7 +320,7 @@ $results = $hermes->search($request);
     ]),
     SearchResultRecord::from([
         'document_id' => 'doc-789',
-        'fingerprint' => 'App.Models.User|456',
+        'fingerprint' => 'App\\Models\\User|456',
         'data' => StrictAssociative::from([
             'name' => 'Johanna Smith',
             'email' => 'johanna@example.com',
@@ -481,7 +481,7 @@ $request = CompletionRequestRecord::from([
 $request = CompletionRequestRecord::from([
     'query' => 'joh',
     'contexts' => [
-        ['namespace' => 'App.Models.User']
+        ['namespace' => 'App\\Models\\User']
     ]
 ]);
 ```
@@ -502,7 +502,7 @@ $request = CompletionRequestRecord::from([
     'query' => 'joh',
     'contexts' => [
         [
-            'namespace' => 'App.Models.User',
+            'namespace' => 'App\\Models\\User',
             'cluster' => 'tenant:company_abc'
         ]
     ]
@@ -515,11 +515,11 @@ $request = CompletionRequestRecord::from([
     'query' => 'joh',
     'contexts' => [
         [
-            'namespace' => 'App.Models.User',
+            'namespace' => 'App\\Models\\User',
             'cluster' => 'tenant:company_abc'
         ],
         [
-            'namespace' => 'App.Models.Product',
+            'namespace' => 'App\\Models\\Product',
             'cluster' => 'tenant:company_xyz'
         ]
     ]

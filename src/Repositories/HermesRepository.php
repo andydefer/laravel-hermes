@@ -8,24 +8,16 @@ use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\Contracts\Repositories\HermesRepositoryInterface;
 use AndyDefer\LaravelIndexer\Repositories\IndexedTokenRepository;
+use AndyDefer\LaravelIndexer\Services\Composants\IndexableRecordFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
-/**
- * Repository for Hermes token operations.
- *
- * Provides methods to search, retrieve, and count tokens by n-grams
- * with optional context filters and field restrictions.
- */
 final class HermesRepository implements HermesRepositoryInterface
 {
     public function __construct(
         private readonly IndexedTokenRepository $tokenRepository,
     ) {}
 
-    /**
-     * {@inheritDoc}
-     */
     public function findTokensByNgrams(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -48,9 +40,6 @@ final class HermesRepository implements HermesRepositoryInterface
         return $query->get();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function getAllTokensByNgrams(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -66,9 +55,6 @@ final class HermesRepository implements HermesRepositoryInterface
         return $query->get();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function getTokensGroupedByDocument(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -109,9 +95,6 @@ final class HermesRepository implements HermesRepositoryInterface
         return $grouped;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function countTokensByNgrams(
         array $ngrams,
         ?ContextFilterVOCollection $contexts = null,
@@ -126,21 +109,26 @@ final class HermesRepository implements HermesRepositoryInterface
         return $query->count('id');
     }
 
-    /**
-     * Applies field and context filters to the query.
-     *
-     * @param  Builder  $query  The query builder
-     * @param  ContextFilterVOCollection|null  $contexts  The context filters to apply
-     * @param  StringTypedCollection|null  $fields  The fields to filter by
-     */
     private function applyFilters(Builder $query, ?ContextFilterVOCollection $contexts, ?StringTypedCollection $fields): void
     {
+
         if ($fields !== null && ! $fields->isEmpty()) {
-            $query->whereIn('field', $fields->toArray());
+            $fieldsArray = $fields->toArray();
+            $query->whereIn('field', $fieldsArray);
+        } else {
         }
 
         if ($contexts === null || $contexts->isEmpty()) {
+
             return;
+        }
+
+        foreach ($contexts as $index => $context) {
+            if ($context->hasNamespace()) {
+            }
+
+            if ($context->hasClusters()) {
+            }
         }
 
         $query->where(function ($subQuery) use ($contexts) {
@@ -153,12 +141,24 @@ final class HermesRepository implements HermesRepositoryInterface
                     }
 
                     if ($context->hasClusters()) {
-                        $filterQuery->whereHas('document', function ($documentQuery) use ($context) {
-                            $documentQuery->whereCluster($context->getClusterColumn(), $context->getClusterQuery());
+                        $originalQuery = $context->getClusterQuery();
+
+                        $filterQuery->whereHas('document', function ($documentQuery) use ($context, $originalQuery) {
+
+                            // Récupérer un document exemple pour voir les clés stockées
+                            $sample = $documentQuery->getModel()->newQuery()->first();
+                            if ($sample) {
+                                $clusterData = $sample->getAttribute($context->getClusterColumn());
+                            }
+
+                            $documentQuery->whereCluster($context->getClusterColumn(), $originalQuery);
                         });
                     }
                 });
             }
         });
+
+        IndexableRecordFactory::class;
+
     }
 }

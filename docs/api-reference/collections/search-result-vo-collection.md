@@ -49,7 +49,7 @@ Extrait tous les fingerprints de la collection.
 <?php
 
 $fingerprints = $collection->getFingerprints();
-// Collection contenant : ['App.Models.User|1', 'App.Models.Product|42']
+// Collection contenant : ['App\\Models\\User|1', 'App\\Models\\Product|42']
 ```
 
 ---
@@ -107,7 +107,7 @@ Filtre les résultats pour ne conserver que ceux appartenant au namespace donné
 ```php
 <?php
 
-$userResults = $collection->filterByNamespace('App.Models.User');
+$userResults = $collection->filterByNamespace('App\\Models\\User');
 ```
 
 ---
@@ -127,8 +127,8 @@ Filtre les résultats pour ne conserver que ceux appartenant à l'un des namespa
 <?php
 
 $results = $collection->filterByNamespaces([
-    'App.Models.User',
-    'App.Models.Product'
+    'App\\Models\\User',
+    'App\\Models\\Product'
 ]);
 ```
 
@@ -215,7 +215,7 @@ Extrait tous les namespaces uniques de la collection.
 <?php
 
 $namespaces = $collection->getNamespaces();
-// ['App.Models.User', 'App.Models.Product']
+// ['App\\Models\\User', 'App\\Models\\Product']
 ```
 
 ## Cas d'utilisation
@@ -290,7 +290,7 @@ foreach ($fieldStats as $field => $count) {
 <?php
 
 $filtered = $collection
-    ->filterByNamespace('App.Models.User')
+    ->filterByNamespace('App\\Models\\User')
     ->filterByMinSimilarity(0.8);
 
 $best = $filtered->getBestMatch();
@@ -358,7 +358,7 @@ echo "Namespaces : " . implode(', ', $namespaces) . "\n";
 // Filtrage des résultats de qualité
 $qualityResults = $collection
     ->filterByMinSimilarity(0.8)
-    ->filterByNamespace('App.Models.User');
+    ->filterByNamespace('App\\Models\\User');
 
 echo "Utilisateurs pertinents : " . $qualityResults->count() . "\n";
 

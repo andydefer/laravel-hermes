@@ -21,13 +21,13 @@ Encapsule les critères de filtrage par namespace et par cluster pour les recher
 
 ### `$namespace : ?string`
 
-Namespace à filtrer (ex: 'App\Models\User', 'App.Models.Product').
+Namespace à filtrer (ex: 'App\Models\User', 'App\\Models\\Product').
 
 **Exemple :**
 ```php
 <?php
 
-$context->namespace; // 'App.Models.User'
+$context->namespace; // 'App\\Models\\User'
 ```
 
 ---
@@ -122,7 +122,7 @@ Retourne le filtre sous forme de tableau associatif strict.
 <?php
 
 $value = $context->getValue();
-// ['namespace' => 'App.Models.User', 'cluster_queries' => ['cluster' => 'tenant=company_abc']]
+// ['namespace' => 'App\\Models\\User', 'cluster_queries' => ['cluster' => 'tenant=company_abc']]
 ```
 
 ## Cas d'utilisation
@@ -251,8 +251,8 @@ use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 $namespaceFilter = new ContextFilterVO('App\\Models\\User');
 
 echo "Namespace : " . $namespaceFilter->namespace . "\n";
-echo "Has namespace : " . ($namespaceFilter->hasNamespace() ? 'true' : 'false') . "\n";
-echo "Has clusters : " . ($namespaceFilter->hasClusters() ? 'true' : 'false') . "\n";
+echo "Has namespace : " . ($namespaceFilter->hasNamespace() ? 'yes' : 'no') . "\n";
+echo "Has clusters : " . ($namespaceFilter->hasClusters() ? 'yes' : 'no') . "\n";
 
 // 2. Filtre avec cluster unique
 $clusterFilter = new ContextFilterVO(

@@ -139,6 +139,7 @@ final class HermesServiceTest extends IntegrationTestCase
     public function test_complete_with_namespace_filter(): void
     {
         $this->createAndIndexUser(1, 'John Doe', 'john@example.com');
+
         $this->createAndIndexProduct(1, 'Product X', 'REF-001');
 
         $contexts = new ContextFilterVOCollection;
@@ -694,5 +695,112 @@ final class HermesServiceTest extends IntegrationTestCase
         $this->assertInstanceOf(StrictAssociative::class, $value);
         $this->assertEquals($namespace, $value['namespace']);
         $this->assertEquals(['cluster' => 'tenant=company_abc'], $value['cluster_queries']->toArray());
+    }
+
+    // ==================== NESTED DOT NOTATION TESTS ====================
+
+    public function test_complete_with_deep_dot_notation_cluster(): void
+    {
+        // ✅ AJOUTER LE CLUSTER COMPLET
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: [
+            'tenant' => 'company_abc',
+            'settings' => [
+                'preferences' => [
+                    'theme' => 'dark',
+                ],
+            ],
+        ]);
+
+        $contexts = new ContextFilterVOCollection;
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'settings.preferences.theme=dark',
+        ]));
+
+        $request = CompletionRequestRecord::from([
+            'query' => 'joh=name',
+            'limit' => 10,
+            'contexts' => $contexts,
+        ]);
+
+        $results = $this->hermes->complete($request);
+
+        $this->assertNotEmpty($results);
+    }
+
+    public function test_complete_with_dot_notation_and_numeric_operator(): void
+    {
+        // ✅ AJOUTER LE CLUSTER COMPLET
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: [
+            'tenant' => 'company_abc',
+            'profile' => [
+                'years_experience' => 5,
+            ],
+        ]);
+
+        $contexts = new ContextFilterVOCollection;
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'profile.years_experience>3',
+        ]));
+
+        $request = CompletionRequestRecord::from([
+            'query' => 'joh=name',
+            'limit' => 10,
+            'contexts' => $contexts,
+        ]);
+
+        $results = $this->hermes->complete($request);
+
+        $this->assertNotEmpty($results);
+    }
+
+    public function test_search_with_dot_notation_cluster(): void
+    {
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: [
+            'tenant' => 'company_abc',
+            'profile' => [
+                'is_verified' => 'yes',
+            ],
+        ]);
+
+        $contexts = new ContextFilterVOCollection;
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'profile.is_verified=yes',
+        ]));
+
+        $request = SearchRequestRecord::from([
+            'query' => 'john=name',
+            'limit' => 20,
+            'contexts' => $contexts,
+            'min_similarity' => 0.3,
+        ]);
+
+        $results = $this->hermes->search($request);
+
+        $this->assertNotEmpty($results);
+    }
+
+    public function test_complete_with_dot_notation_cluster(): void
+    {
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', cluster: [
+            'tenant' => 'company_abc',
+            'profile' => [
+                'is_verified' => 'yes',
+            ],
+        ]);
+
+        $contexts = new ContextFilterVOCollection;
+        $contexts->add($this->createContextFilterForCluster([
+            'cluster' => 'profile.is_verified=yes',
+        ]));
+
+        $request = CompletionRequestRecord::from([
+            'query' => 'joh=name',
+            'limit' => 10,
+            'contexts' => $contexts,
+        ]);
+
+        $results = $this->hermes->complete($request);
+
+        $this->assertNotEmpty($results);
     }
 }

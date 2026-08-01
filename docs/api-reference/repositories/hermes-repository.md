@@ -84,7 +84,7 @@ Récupère les tokens groupés par document.
 ```php
 [
     'document_id' => 'doc_1',
-    'fingerprint' => 'App.Models.User|1',
+    'fingerprint' => 'App\\Models\\User|1',
     'data' => $dataObject,
     'tokens' => [
         ['id' => 1, 'token' => 'john', 'original_text' => 'John Doe', 'field' => 'name'],
