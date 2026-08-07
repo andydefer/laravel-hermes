@@ -27,10 +27,25 @@ abstract class IntegrationTestCase extends Orchestra
         ];
     }
 
+    protected function defineEnvironment($app): void
+    {
+        parent::defineEnvironment($app);
+
+        $app['config']->set('database.default', 'sqlite');
+        $app['config']->set('database.connections.sqlite', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]);
+
+        $app['config']->set('database.connections.mysql', []);
+    }
+
     /**
      * Définit l'environnement de test avec MySQL par défaut.
      */
-    protected function defineEnvironment($app): void
+    /* protected function defineEnvironment($app): void
     {
         // Connexion MySQL par défaut
         $app['config']->set('database.default', 'mysql');
@@ -40,7 +55,7 @@ abstract class IntegrationTestCase extends Orchestra
             'port' => env('DB_PORT', '3306'),
             'database' => env('DB_DATABASE', 'hermes_test'),
             'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', 'Hello@0405'),
+            'password' => env('DB_PASSWORD', ''),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
@@ -48,7 +63,7 @@ abstract class IntegrationTestCase extends Orchestra
             'engine' => null,
         ]);
     }
-
+ */
     protected function setUp(): void
     {
         parent::setUp();
