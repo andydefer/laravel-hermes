@@ -21,12 +21,16 @@ use AndyDefer\LaravelHermes\Tests\IntegrationTestCase;
 use AndyDefer\LaravelHermes\ValueObjects\ContextFilterVO;
 use AndyDefer\LaravelIndexer\Contracts\IndexerInterface;
 use AndyDefer\LaravelIndexer\Services\Composants\IndexableRecordFactory;
+use AndyDefer\LaravelIndexer\Services\Composants\IndexWriter;
 use AndyDefer\LaravelIndexer\ValueObjects\SearchQueryVO;
 use AndyDefer\Repository\ValueObjects\ClusterQueries;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 
 final class HermesServiceTest extends IntegrationTestCase
 {
+    use RefreshDatabase;
+
     private HermesInterface $hermes;
 
     private IndexerInterface $indexer;
@@ -501,6 +505,7 @@ final class HermesServiceTest extends IntegrationTestCase
             'cluster' => 'tenant=company_xyz',
         ]));
 
+        IndexWriter::class;
         $request = SearchRequestRecord::from([
             'query' => new SearchQueryVO('john=name|product=name'),
             'limit' => 20,

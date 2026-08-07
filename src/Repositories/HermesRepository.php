@@ -8,9 +8,9 @@ use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\Contracts\Repositories\HermesRepositoryInterface;
 use AndyDefer\LaravelIndexer\Repositories\IndexedTokenRepository;
-use AndyDefer\LaravelIndexer\Services\Composants\IndexableRecordFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 final class HermesRepository implements HermesRepositoryInterface
 {
@@ -111,26 +111,29 @@ final class HermesRepository implements HermesRepositoryInterface
 
     private function applyFilters(Builder $query, ?ContextFilterVOCollection $contexts, ?StringTypedCollection $fields): void
     {
-
         if ($fields !== null && ! $fields->isEmpty()) {
             $fieldsArray = $fields->toArray();
             $query->whereIn('field', $fieldsArray);
-        } else {
         }
 
         if ($contexts === null || $contexts->isEmpty()) {
-
             return;
         }
 
-        foreach ($contexts as $index => $context) {
-            if ($context->hasNamespace()) {
-            }
+        $driverName = DB::connection()->getDriverName();
 
-            if ($context->hasClusters()) {
-            }
+        if ($driverName === 'sqlite') {
+            $this->applySqliteFilters($query, $contexts);
+        } else {
+            $this->applyMySqlFilters($query, $contexts);
         }
+    }
 
+    /**
+     * Filtres pour SQLite
+     */
+    private function applySqliteFilters(Builder $query, ContextFilterVOCollection $contexts): void
+    {
         $query->where(function ($subQuery) use ($contexts) {
             foreach ($contexts as $context) {
                 $subQuery->orWhere(function ($filterQuery) use ($context) {
@@ -144,21 +147,38 @@ final class HermesRepository implements HermesRepositoryInterface
                         $originalQuery = $context->getClusterQuery();
 
                         $filterQuery->whereHas('document', function ($documentQuery) use ($context, $originalQuery) {
-
-                            // Récupérer un document exemple pour voir les clés stockées
-                            $sample = $documentQuery->getModel()->newQuery()->first();
-                            if ($sample) {
-                                $clusterData = $sample->getAttribute($context->getClusterColumn());
-                            }
-
                             $documentQuery->whereCluster($context->getClusterColumn(), $originalQuery);
                         });
                     }
                 });
             }
         });
+    }
 
-        IndexableRecordFactory::class;
+    /**
+     * Filtres pour MySQL
+     */
+    private function applyMySqlFilters(Builder $query, ContextFilterVOCollection $contexts): void
+    {
+        $query->where(function ($subQuery) use ($contexts) {
+            foreach ($contexts as $context) {
+                $subQuery->orWhere(function ($filterQuery) use ($context) {
+                    if ($context->hasNamespace()) {
+                        $filterQuery->whereHas('document', function ($documentQuery) use ($context) {
+                            $namespace = addslashes($context->namespace);
+                            $documentQuery->where('fingerprint', 'LIKE', $namespace.'|%');
+                        });
+                    }
 
+                    if ($context->hasClusters()) {
+                        $originalQuery = $context->getClusterQuery();
+
+                        $filterQuery->whereHas('document', function ($documentQuery) use ($context, $originalQuery) {
+                            $documentQuery->whereCluster($context->getClusterColumn(), $originalQuery);
+                        });
+                    }
+                });
+            }
+        });
     }
 }

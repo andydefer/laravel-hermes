@@ -27,14 +27,25 @@ abstract class IntegrationTestCase extends Orchestra
         ];
     }
 
+    /**
+     * Définit l'environnement de test avec MySQL par défaut.
+     */
     protected function defineEnvironment($app): void
     {
-        $app['config']->set('database.default', 'testbench');
-        $app['config']->set('database.connections.testbench', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
+        // Connexion MySQL par défaut
+        $app['config']->set('database.default', 'mysql');
+        $app['config']->set('database.connections.mysql', [
+            'driver' => 'mysql',
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'hermes_test'),
+            'username' => env('DB_USERNAME', 'root'),
+            'password' => env('DB_PASSWORD', 'Hello@0405'),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
-            'foreign_key_constraints' => true,
+            'strict' => true,
+            'engine' => null,
         ]);
     }
 
@@ -52,22 +63,43 @@ abstract class IntegrationTestCase extends Orchestra
 
     protected function runMigrations(): void
     {
-        // 1. Charger les migrations des fixtures (modèles de test)
         $fixtureMigrations = __DIR__.'/Fixtures/migrations';
         if (is_dir($fixtureMigrations)) {
             $this->loadMigrationsFrom($fixtureMigrations);
         }
 
-        // 2. Charger les migrations du package laravel-indexer
         $indexerMigrations = realpath(__DIR__.'/../vendor/andydefer/laravel-indexer/database/migrations');
         if ($indexerMigrations !== false && is_dir($indexerMigrations)) {
             $this->loadMigrationsFrom($indexerMigrations);
         }
 
-        // 3. Charger les migrations du package laravel-hermes
         $hermesMigrations = __DIR__.'/../database/migrations';
         if (is_dir($hermesMigrations)) {
             $this->loadMigrationsFrom($hermesMigrations);
+        }
+    }
+
+    protected function isMySQL(): bool
+    {
+        return config('database.default') === 'mysql';
+    }
+
+    protected function isSQLite(): bool
+    {
+        return config('database.default') === 'sqlite';
+    }
+
+    protected function requireMySQL(): void
+    {
+        if (! $this->isMySQL()) {
+            $this->markTestSkipped('Ce test nécessite MySQL');
+        }
+    }
+
+    protected function requireSQLite(): void
+    {
+        if (! $this->isSQLite()) {
+            $this->markTestSkipped('Ce test nécessite SQLite');
         }
     }
 }

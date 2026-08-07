@@ -16,10 +16,13 @@ use AndyDefer\LaravelIndexer\Contracts\IndexerInterface;
 use AndyDefer\LaravelIndexer\Services\Composants\IndexableRecordFactory;
 use AndyDefer\LaravelIndexer\ValueObjects\IndexableFingerprintVO;
 use AndyDefer\Repository\ValueObjects\ClusterQueries;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 
 final class HermesRepositoryTest extends IntegrationTestCase
 {
+    use RefreshDatabase;
+
     private HermesRepository $repository;
 
     private IndexerInterface $indexer;
