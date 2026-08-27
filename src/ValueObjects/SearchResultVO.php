@@ -32,6 +32,8 @@ final class SearchResultVO extends AbstractValueObject
 
     private string $fingerprint;
 
+    private string $documentId;
+
     /**
      * Initializes the value object with a record and its data representation.
      *
@@ -44,6 +46,7 @@ final class SearchResultVO extends AbstractValueObject
     ) {
         $this->similarity = round($record->similarity, 2);
         $this->fingerprint = $record->fingerprint;
+        $this->documentId = $record->document_id;
         $this->data = $data;
         $this->bestMatches = $this->extractBestMatches();
     }
@@ -85,6 +88,16 @@ final class SearchResultVO extends AbstractValueObject
     }
 
     /**
+     * Returns the document ID of the search result.
+     *
+     * @return string The document ID
+     */
+    public function getDocumentId(): string
+    {
+        return $this->documentId;
+    }
+
+    /**
      * Returns the value object as a StrictAssociative array.
      *
      * @return StrictAssociative<string, mixed> The structured value
@@ -92,6 +105,7 @@ final class SearchResultVO extends AbstractValueObject
     public function getValue(): StrictAssociative
     {
         return StrictAssociative::from([
+            'document_id' => $this->documentId,
             'data' => $this->data,
             'similarity' => $this->similarity,
             'matches' => $this->bestMatches,
