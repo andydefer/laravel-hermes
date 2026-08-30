@@ -235,11 +235,23 @@ final class HermesService implements HermesInterface
     /**
      * Generates lexical and metaphone n-grams from a term.
      *
-     * @param  string  $term  The term to generate n-grams from
+     * @param  mixed  $term  The term to generate n-grams from
      * @return array<string> Generated n-grams
+     *
+     * @throws \InvalidArgumentException If the term is not a string
      */
-    private function generateTermNgrams(string $term): array
+    private function generateTermNgrams(mixed $term): array
     {
+        // ✅ Si ce n'est pas une string → Exception
+        if (! is_string($term)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Cannot generate n-grams from non-string value. Got: %s. '
+                .'Only string values should be indexed. Numeric values should be moved to getIndexableCluster().',
+                get_debug_type($term)
+            ));
+        }
+
+        $term = (string) $term;
         $normalizedTerm = $this->normalizer->normalize($term);
 
         $lexicalNgrams = $this->ngramGenerator->generate(
