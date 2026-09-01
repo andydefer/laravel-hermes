@@ -6,7 +6,7 @@ namespace AndyDefer\LaravelHermes\ValueObjects;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractData;
 use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
-use AndyDefer\DomainStructures\Utils\StrictAssociative;
+use AndyDefer\DomainStructures\Utils\Associative;
 use AndyDefer\LaravelHermes\Records\SearchResultRecord;
 
 /**
@@ -98,13 +98,13 @@ final class SearchResultVO extends AbstractValueObject
     }
 
     /**
-     * Returns the value object as a StrictAssociative array.
+     * Returns the value object as a Associative array.
      *
-     * @return StrictAssociative<string, mixed> The structured value
+     * @return Associative<string, mixed> The structured value
      */
-    public function getValue(): StrictAssociative
+    public function getValue(): Associative
     {
-        return StrictAssociative::from([
+        return Associative::from([
             'document_id' => $this->documentId,
             'data' => $this->data,
             'similarity' => $this->similarity,
