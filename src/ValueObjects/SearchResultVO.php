@@ -105,7 +105,7 @@ final class SearchResultVO extends AbstractValueObject
     public function getValue(): Associative
     {
         return Associative::from([
-            'document_id' => $this->documentId,
+            'documentId' => $this->documentId,
             'data' => $this->data,
             'similarity' => $this->similarity,
             'matches' => $this->bestMatches,
