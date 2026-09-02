@@ -7,6 +7,7 @@ namespace AndyDefer\LaravelHermes\Repositories;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\LaravelHermes\Collections\ContextFilterVOCollection;
 use AndyDefer\LaravelHermes\Contracts\Repositories\HermesRepositoryInterface;
+use AndyDefer\LaravelIndexer\Repositories\IndexedDocumentRepository;
 use AndyDefer\LaravelIndexer\Repositories\IndexedTokenRepository;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -16,6 +17,7 @@ final class HermesRepository implements HermesRepositoryInterface
 {
     public function __construct(
         private readonly IndexedTokenRepository $tokenRepository,
+        private readonly IndexedDocumentRepository $documentRepository,
     ) {}
 
     public function findTokensByNgrams(
@@ -107,6 +109,15 @@ final class HermesRepository implements HermesRepositoryInterface
         $this->applyFilters($query, $contexts, $fields);
 
         return $query->count('id');
+    }
+
+    public function findDocumentsByIds(array $documentIds): Collection
+    {
+        if (empty($documentIds)) {
+            return collect();
+        }
+
+        return $this->documentRepository->findByIds($documentIds);
     }
 
     private function applyFilters(Builder $query, ?ContextFilterVOCollection $contexts, ?StringTypedCollection $fields): void

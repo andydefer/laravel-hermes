@@ -20,6 +20,7 @@ use AndyDefer\LaravelHermes\Records\SuggestionResultRecord;
 use AndyDefer\PhpServices\Contracts\Services\NGramGeneratorInterface;
 use AndyDefer\PhpServices\Contracts\TextNormalizerInterface;
 use AndyDefer\PhpServices\Enums\NormalizationMode;
+use Illuminate\Support\Collection;
 
 /**
  * Main service implementation for Hermes operations.
@@ -159,7 +160,12 @@ final class HermesService implements HermesInterface
             }
         }
 
-        $collection = $this->buildSuggestionResultCollection($allResults);
+        // ✅ Récupérer tous les documents en UNE SEULE requête
+        $documentIds = array_keys($allResults);
+        $documents = $this->hermesRepository->findDocumentsByIds($documentIds)
+            ->keyBy('id');
+
+        $collection = $this->buildSuggestionResultCollection($allResults, $documents);
         $sorted = $this->sortBySimilarityDescending($collection->toArray());
 
         return $this->sliceCollection($sorted, $request->limit, SuggestionResultRecordCollection::class);
@@ -338,28 +344,58 @@ final class HermesService implements HermesInterface
     }
 
     /**
-     * Builds a SuggestionResultRecordCollection from aggregated results.
+     * Builds a SuggestionResultRecordCollection from aggregated results with full document data.
      *
      * @param  array<string, array>  $allResults  Aggregated results
+     * @param  Collection  $documents  Documents keyed by ID
      */
-    private function buildSuggestionResultCollection(array $allResults): SuggestionResultRecordCollection
+    private function buildSuggestionResultCollection(array $allResults, Collection $documents): SuggestionResultRecordCollection
     {
         $collection = new SuggestionResultRecordCollection;
 
-        foreach ($allResults as $data) {
+        foreach ($allResults as $documentId => $data) {
             $avgSimilarity = array_sum($data['scores']) / count($data['scores']);
+
+            $document = $documents->get($documentId);
+            $fullFieldValue = null;
+
+            if ($document) {
+                $fullFieldValue = $this->extractFieldValue($document->data->toArray(), $data['field']);
+            }
 
             $collection->add(SuggestionResultRecord::from([
                 'token_id' => $data['token_id'],
                 'document_id' => $data['document_id'],
                 'token' => $data['token'],
-                'original_text' => $data['original_text'],
+                'original_text' => $fullFieldValue ?? $data['original_text'],
                 'field' => $data['field'],
                 'similarity' => $avgSimilarity,
             ]));
         }
 
         return $collection;
+    }
+
+    /**
+     * Extracts a field value from document data using dot notation.
+     *
+     * @param  array  $data  Document data
+     * @param  string  $field  Field name (supports dot notation)
+     * @return string|null The extracted value or null if not found
+     */
+    private function extractFieldValue(array $data, string $field): ?string
+    {
+        $keys = explode('.', $field);
+        $value = $data;
+
+        foreach ($keys as $key) {
+            if (! is_array($value) || ! array_key_exists($key, $value)) {
+                return null;
+            }
+            $value = $value[$key];
+        }
+
+        return is_string($value) ? $value : null;
     }
 
     /**

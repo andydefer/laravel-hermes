@@ -12,6 +12,7 @@ use AndyDefer\LaravelHermes\Contracts\Services\SimilarityCalculatorInterface;
 use AndyDefer\LaravelHermes\Repositories\HermesRepository;
 use AndyDefer\LaravelHermes\Services\HermesService;
 use AndyDefer\LaravelHermes\Services\SimilarityCalculatorService;
+use AndyDefer\LaravelIndexer\Repositories\IndexedDocumentRepository;
 use AndyDefer\LaravelIndexer\Repositories\IndexedTokenRepository;
 use AndyDefer\PhpServices\Configs\TextNormalizerConfig;
 use AndyDefer\PhpServices\Contracts\Services\NGramGeneratorInterface;
@@ -21,7 +22,6 @@ use AndyDefer\PhpServices\Contracts\TextNormalizerInterface;
 use AndyDefer\PhpServices\Services\NGramGeneratorService;
 use AndyDefer\PhpServices\Services\TextNormalizerService;
 use AndyDefer\PhpServices\Services\WordVectorGeneratorService;
-use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -56,17 +56,16 @@ final class HermesServiceProvider extends ServiceProvider
         // CONFIGURATIONS
         // ============================================================
 
-        $this->app->singleton(SimilarityConfigInterface::class, function ($app) {
-            return new SimilarityConfig(
-                $app->make(ConfigRepository::class)
-            );
+        $this->app->singleton(SimilarityConfig::class, function ($app) {
+            return new SimilarityConfig($app['config']);
         });
 
-        $this->app->singleton(TextNormalizerConfigInterface::class, function ($app) {
-            return new TextNormalizerConfig(
-                $app->make(ConfigRepository::class)
-            );
+        $this->app->singleton(TextNormalizerConfig::class, function ($app) {
+            return new TextNormalizerConfig($app['config']);
         });
+
+        $this->app->bind(SimilarityConfigInterface::class, SimilarityConfig::class);
+        $this->app->bind(TextNormalizerConfigInterface::class, TextNormalizerConfig::class);
 
         $this->app->alias(SimilarityConfigInterface::class, 'hermes.similarity.config');
         $this->app->alias(TextNormalizerConfigInterface::class, 'hermes.normalizer.config');
@@ -75,11 +74,13 @@ final class HermesServiceProvider extends ServiceProvider
         // TEXT NORMALIZER
         // ============================================================
 
-        $this->app->singleton(TextNormalizerInterface::class, function ($app) {
+        $this->app->singleton(TextNormalizerService::class, function ($app) {
             return new TextNormalizerService(
                 $app->make(TextNormalizerConfigInterface::class)
             );
         });
+
+        $this->app->bind(TextNormalizerInterface::class, TextNormalizerService::class);
 
         $this->app->alias(TextNormalizerInterface::class, 'hermes.normalizer');
 
@@ -87,11 +88,13 @@ final class HermesServiceProvider extends ServiceProvider
         // N-GRAM GENERATOR
         // ============================================================
 
-        $this->app->singleton(NGramGeneratorInterface::class, function ($app) {
+        $this->app->singleton(NGramGeneratorService::class, function ($app) {
             return new NGramGeneratorService(
                 $app->make(TextNormalizerConfigInterface::class)
             );
         });
+
+        $this->app->bind(NGramGeneratorInterface::class, NGramGeneratorService::class);
 
         $this->app->alias(NGramGeneratorInterface::class, 'hermes.ngram.generator');
 
@@ -99,11 +102,13 @@ final class HermesServiceProvider extends ServiceProvider
         // WORD VECTOR GENERATOR
         // ============================================================
 
-        $this->app->singleton(WordVectorGeneratorInterface::class, function ($app) {
+        $this->app->singleton(WordVectorGeneratorService::class, function ($app) {
             return new WordVectorGeneratorService(
                 $app->make(TextNormalizerConfigInterface::class)
             );
         });
+
+        $this->app->bind(WordVectorGeneratorInterface::class, WordVectorGeneratorService::class);
 
         $this->app->alias(WordVectorGeneratorInterface::class, 'hermes.vector.generator');
 
@@ -111,7 +116,7 @@ final class HermesServiceProvider extends ServiceProvider
         // SIMILARITY CALCULATOR
         // ============================================================
 
-        $this->app->singleton(SimilarityCalculatorInterface::class, function ($app) {
+        $this->app->singleton(SimilarityCalculatorService::class, function ($app) {
             return new SimilarityCalculatorService(
                 normalizer: $app->make(TextNormalizerInterface::class),
                 ngramGenerator: $app->make(NGramGeneratorInterface::class),
@@ -120,9 +125,7 @@ final class HermesServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->singleton(SimilarityCalculatorService::class, function ($app) {
-            return $app->make(SimilarityCalculatorInterface::class);
-        });
+        $this->app->bind(SimilarityCalculatorInterface::class, SimilarityCalculatorService::class);
 
         $this->app->alias(SimilarityCalculatorInterface::class, 'hermes.similarity.calculator');
         $this->app->alias(SimilarityCalculatorService::class, 'hermes.similarity.calculator');
@@ -131,11 +134,14 @@ final class HermesServiceProvider extends ServiceProvider
         // HERMES REPOSITORY
         // ============================================================
 
-        $this->app->singleton(HermesRepositoryInterface::class, function ($app) {
+        $this->app->singleton(HermesRepository::class, function ($app) {
             return new HermesRepository(
-                $app->make(IndexedTokenRepository::class)
+                $app->make(IndexedTokenRepository::class),
+                $app->make(IndexedDocumentRepository::class)
             );
         });
+
+        $this->app->bind(HermesRepositoryInterface::class, HermesRepository::class);
 
         $this->app->alias(HermesRepositoryInterface::class, 'hermes.repository');
 
@@ -143,7 +149,7 @@ final class HermesServiceProvider extends ServiceProvider
         // HERMES SERVICE
         // ============================================================
 
-        $this->app->singleton(HermesInterface::class, function ($app) {
+        $this->app->singleton(HermesService::class, function ($app) {
             return new HermesService(
                 hermesRepository: $app->make(HermesRepositoryInterface::class),
                 normalizer: $app->make(TextNormalizerInterface::class),
@@ -153,9 +159,7 @@ final class HermesServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->singleton(HermesService::class, function ($app) {
-            return $app->make(HermesInterface::class);
-        });
+        $this->app->bind(HermesInterface::class, HermesService::class);
 
         $this->app->alias(HermesInterface::class, 'hermes.service');
         $this->app->alias(HermesService::class, 'hermes.service');

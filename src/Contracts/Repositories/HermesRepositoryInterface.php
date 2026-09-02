@@ -77,4 +77,12 @@ interface HermesRepositoryInterface
         ?ContextFilterVOCollection $contexts = null,
         ?StringTypedCollection $fields = null
     ): int;
+
+    /**
+     * Finds documents by their IDs.
+     *
+     * @param  array<string>  $documentIds  Array of document IDs
+     * @return Collection Collection of document models
+     */
+    public function findDocumentsByIds(array $documentIds): Collection;
 }
