@@ -808,4 +808,82 @@ final class HermesServiceTest extends IntegrationTestCase
 
         $this->assertNotEmpty($results);
     }
+    // ==================== DEDUPLICATION TESTS ====================
+
+    public function test_complete_does_not_return_duplicate_original_text(): void
+    {
+        // Créer plusieurs documents avec le même original_text mais des champs différents
+        $this->createAndIndexUser(1, 'John Doe', 'john@example.com', 'John');
+        $this->createAndIndexUser(2, 'John Smith', 'john.smith@example.com', 'John');
+
+        $request = CompletionRequestRecord::from([
+            'query' => new SearchQueryVO('john=name,email,description'),
+            'limit' => 20,
+        ]);
+
+        $results = $this->hermes->complete($request);
+
+        $this->assertNotEmpty($results);
+
+        // Vérifier qu'il n'y a pas de doublons d'original_text
+        $originalTexts = [];
+        foreach ($results as $result) {
+            $originalTexts[] = $result->original_text;
+        }
+
+        $uniqueOriginalTexts = array_unique($originalTexts);
+        $this->assertCount(count($originalTexts), $uniqueOriginalTexts, 'Duplicate original_text found in completion results');
+    }
+
+    public function test_suggest_does_not_return_duplicate_original_text(): void
+    {
+        // Créer plusieurs documents avec le même original_text mais des champs différents
+        $this->createAndIndexUser(1, 'developer', 'dev@example.com', 'developer');
+        $this->createAndIndexUser(2, 'developer', 'dev2@example.com', 'developer');
+
+        $request = SuggestionRequestRecord::from([
+            'query' => new SearchQueryVO('devloper=name,email,description'),
+            'limit' => 20,
+            'min_similarity' => 0.3,
+        ]);
+
+        $results = $this->hermes->suggest($request);
+
+        $this->assertNotEmpty($results);
+
+        // Vérifier qu'il n'y a pas de doublons d'original_text
+        $originalTexts = [];
+        foreach ($results as $result) {
+            $originalTexts[] = $result->original_text;
+        }
+
+        $uniqueOriginalTexts = array_unique($originalTexts);
+        $this->assertCount(count($originalTexts), $uniqueOriginalTexts, 'Duplicate original_text found in suggestion results');
+    }
+
+    public function test_search_does_not_return_duplicate_document(): void
+    {
+        // Créer des documents avec le même original_text mais des emails différents
+        $this->createAndIndexUser(1, 'John Doe', 'john1@example.com', 'Software Developer');
+        $this->createAndIndexUser(2, 'John Doe', 'john2@example.com', 'Software Developer');
+
+        $request = SearchRequestRecord::from([
+            'query' => new SearchQueryVO('john=name,email,description'),
+            'limit' => 20,
+            'min_similarity' => 0.3,
+        ]);
+
+        $results = $this->hermes->search($request);
+
+        $this->assertNotEmpty($results);
+
+        // Vérifier qu'il n'y a pas de doublons de fingerprint
+        $fingerprints = [];
+        foreach ($results as $result) {
+            $fingerprints[] = $result->fingerprint;
+        }
+
+        $uniqueFingerprints = array_unique($fingerprints);
+        $this->assertCount(count($fingerprints), $uniqueFingerprints, 'Duplicate fingerprint found in search results');
+    }
 }
