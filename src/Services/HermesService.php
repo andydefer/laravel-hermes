@@ -160,7 +160,6 @@ final class HermesService implements HermesInterface
             }
         }
 
-        // ✅ Récupérer tous les documents en UNE SEULE requête
         $documentIds = array_keys($allResults);
         $documents = $this->hermesRepository->findDocumentsByIds($documentIds)
             ->keyBy('id');
@@ -248,7 +247,6 @@ final class HermesService implements HermesInterface
      */
     private function generateTermNgrams(mixed $term): array
     {
-        // ✅ Si ce n'est pas une string → Exception
         if (! is_string($term)) {
             throw new \InvalidArgumentException(sprintf(
                 'Cannot generate n-grams from non-string value. Got: %s. '
@@ -326,17 +324,45 @@ final class HermesService implements HermesInterface
     private function buildCompletionResultCollection(array $allResults): CompletionResultRecordCollection
     {
         $collection = new CompletionResultRecordCollection;
+        $seen = [];
 
         foreach ($allResults as $data) {
             $avgSimilarity = array_sum($data['similarities']) / count($data['similarities']);
+            $originalText = $data['original_text'];
 
+            if (isset($seen[$originalText])) {
+                if ($avgSimilarity > $seen[$originalText]['similarity']) {
+                    $seen[$originalText] = [
+                        'token_id' => $data['token_id'],
+                        'document_id' => $data['document_id'],
+                        'token' => $data['token'],
+                        'original_text' => $originalText,
+                        'field' => $data['field'],
+                        'similarity' => $avgSimilarity,
+                    ];
+                }
+
+                continue;
+            }
+
+            $seen[$originalText] = [
+                'token_id' => $data['token_id'],
+                'document_id' => $data['document_id'],
+                'token' => $data['token'],
+                'original_text' => $originalText,
+                'field' => $data['field'],
+                'similarity' => $avgSimilarity,
+            ];
+        }
+
+        foreach ($seen as $data) {
             $collection->add(CompletionResultRecord::from([
                 'token_id' => $data['token_id'],
                 'document_id' => $data['document_id'],
                 'token' => $data['token'],
                 'original_text' => $data['original_text'],
                 'field' => $data['field'],
-                'similarity' => $avgSimilarity,
+                'similarity' => $data['similarity'],
             ]));
         }
 
@@ -352,6 +378,7 @@ final class HermesService implements HermesInterface
     private function buildSuggestionResultCollection(array $allResults, Collection $documents): SuggestionResultRecordCollection
     {
         $collection = new SuggestionResultRecordCollection;
+        $seen = [];
 
         foreach ($allResults as $documentId => $data) {
             $avgSimilarity = array_sum($data['scores']) / count($data['scores']);
@@ -363,13 +390,41 @@ final class HermesService implements HermesInterface
                 $fullFieldValue = $this->extractFieldValue($document->data->toArray(), $data['field']);
             }
 
+            $originalText = $fullFieldValue ?? $data['original_text'];
+
+            if (isset($seen[$originalText])) {
+                if ($avgSimilarity > $seen[$originalText]['similarity']) {
+                    $seen[$originalText] = [
+                        'token_id' => $data['token_id'],
+                        'document_id' => $data['document_id'],
+                        'token' => $data['token'],
+                        'original_text' => $originalText,
+                        'field' => $data['field'],
+                        'similarity' => $avgSimilarity,
+                    ];
+                }
+
+                continue;
+            }
+
+            $seen[$originalText] = [
+                'token_id' => $data['token_id'],
+                'document_id' => $data['document_id'],
+                'token' => $data['token'],
+                'original_text' => $originalText,
+                'field' => $data['field'],
+                'similarity' => $avgSimilarity,
+            ];
+        }
+
+        foreach ($seen as $data) {
             $collection->add(SuggestionResultRecord::from([
                 'token_id' => $data['token_id'],
                 'document_id' => $data['document_id'],
                 'token' => $data['token'],
-                'original_text' => $fullFieldValue ?? $data['original_text'],
+                'original_text' => $data['original_text'],
                 'field' => $data['field'],
-                'similarity' => $avgSimilarity,
+                'similarity' => $data['similarity'],
             ]));
         }
 
@@ -406,6 +461,7 @@ final class HermesService implements HermesInterface
     private function buildSearchResultCollection(array $documents): SearchResultRecordCollection
     {
         $collection = new SearchResultRecordCollection;
+        $seen = [];
 
         foreach ($documents as $doc) {
             if (empty($doc['similarities'])) {
@@ -413,13 +469,38 @@ final class HermesService implements HermesInterface
             }
 
             $avgSimilarity = array_sum($doc['similarities']) / count($doc['similarities']);
+            $fingerprint = (string) $doc['fingerprint'];
 
-            $collection->add(SearchResultRecord::from([
+            if (isset($seen[$fingerprint])) {
+                if ($avgSimilarity > $seen[$fingerprint]['similarity']) {
+                    $seen[$fingerprint] = [
+                        'document_id' => $doc['document_id'],
+                        'fingerprint' => $fingerprint,
+                        'data' => $doc['data'],
+                        'matches' => $doc['matches'],
+                        'similarity' => $avgSimilarity,
+                    ];
+                }
+
+                continue;
+            }
+
+            $seen[$fingerprint] = [
                 'document_id' => $doc['document_id'],
-                'fingerprint' => $doc['fingerprint'],
+                'fingerprint' => $fingerprint,
                 'data' => $doc['data'],
                 'matches' => $doc['matches'],
                 'similarity' => $avgSimilarity,
+            ];
+        }
+
+        foreach ($seen as $data) {
+            $collection->add(SearchResultRecord::from([
+                'document_id' => $data['document_id'],
+                'fingerprint' => $data['fingerprint'],
+                'data' => $data['data'],
+                'matches' => $data['matches'],
+                'similarity' => $data['similarity'],
             ]));
         }
 
