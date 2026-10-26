@@ -67,7 +67,9 @@ final class HermesRepository implements HermesRepositoryInterface
             ->with('document')
             ->whereIn('token', $ngrams)
             ->select('id', 'document_id', 'token', 'original_text', 'field')
-            ->distinct();
+            ->distinct()
+            // ✅ Exclure les tokens dont le document n'existe plus
+            ->whereHas('document');
 
         $this->applyFilters($query, $contexts, $fields);
 
@@ -76,6 +78,12 @@ final class HermesRepository implements HermesRepositoryInterface
 
         foreach ($tokens as $token) {
             $documentId = $token->document_id;
+
+            // ✅ Garde défensive : skip si le document est null
+            //    (offre supprimée, soft-delete, race condition, etc.)
+            if ($token->document === null) {
+                continue;
+            }
 
             if (! isset($grouped[$documentId])) {
                 $grouped[$documentId] = [
@@ -140,9 +148,6 @@ final class HermesRepository implements HermesRepositoryInterface
         }
     }
 
-    /**
-     * Filtres pour SQLite
-     */
     private function applySqliteFilters(Builder $query, ContextFilterVOCollection $contexts): void
     {
         $query->where(function ($subQuery) use ($contexts) {
@@ -166,9 +171,6 @@ final class HermesRepository implements HermesRepositoryInterface
         });
     }
 
-    /**
-     * Filtres pour MySQL
-     */
     private function applyMySqlFilters(Builder $query, ContextFilterVOCollection $contexts): void
     {
         $query->where(function ($subQuery) use ($contexts) {
